@@ -9,7 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "/api").replace(
+export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(
   /\/$/,
   "",
 );
@@ -31,7 +31,9 @@ export async function apiRequest<T>(
   if (init.body && !headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");
 
-  if (!["GET", "HEAD", "OPTIONS"].includes(method) && path !== "/auth/login") {
+  const isPublicAuthWrite =
+    path.endsWith("/auth/login") || path.endsWith("/auth/register");
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !isPublicAuthWrite) {
     const token = readCookie("XSRF-TOKEN");
     if (token) headers.set("X-XSRF-TOKEN", token);
   }
@@ -44,11 +46,19 @@ export async function apiRequest<T>(
   });
 
   if (!response.ok) {
-    const details: unknown = await response.json().catch(() => null);
+    const responseText = await response.text();
+    let details: unknown = responseText || null;
+    try {
+      details = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      // The current auth controller returns plain text for failed logins.
+    }
     const message =
       typeof details === "object" && details && "message" in details
         ? String(details.message)
-        : `Yêu cầu API thất bại (${response.status})`;
+        : typeof details === "string" && details
+          ? details
+          : `Yêu cầu API thất bại (${response.status})`;
     throw new ApiError(message, response.status, details);
   }
 

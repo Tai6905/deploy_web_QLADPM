@@ -1,12 +1,20 @@
 import { apiRequest } from "./httpClient";
 
 export type UserRole = "CUSTOMER" | "WAREHOUSE" | "SHOP_OWNER";
-export type PageQuery = { page: number; size: number; query?: string };
-export type PageResult<T> = {
-  items: T[];
-  total: number;
+export type PageQuery = {
   page: number;
   size: number;
+  query?: string;
+  categoryId?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  sort?: "newest" | "priceAsc" | "priceDesc";
+};
+export type ApiPage<T> = {
+  items: T[];
+  page: number;
+  size: number;
+  totalItems: number;
   totalPages: number;
 };
 
@@ -20,276 +28,286 @@ export type SessionResponse = {
   authenticated: boolean;
   user: SessionUser | null;
 };
-export type ProductSummary = {
+export type ProductListItem = {
   id: number;
+  categoryId: number;
+  categoryName: string;
+  sku: string;
   name: string;
-  price: number;
-  stockStatus: "IN_STOCK" | "OUT_OF_STOCK";
+  slug: string;
+  description: string | null;
+  listPrice: number;
+  availableQuantity: number;
+  imageUrl: string | null;
 };
-export type ProductDetail = ProductSummary & { description: string | null };
-export type InventoryItem = {
-  productId: number;
-  productName: string;
-  onHandStock: number;
-  reservedStock: number;
-  availableStock: number;
-  lowStockThreshold: number | null;
-  lowStock: boolean;
-};
-export type DeliveryStatus = "NONE" | "PREPARING" | "SHIPPED" | "DELIVERED";
-export type ReturnStatus = "REQUESTED" | "APPROVED" | "RESTOCKED" | "REJECTED";
-export type DeliveryOrder = {
-  orderId: number;
-  orderStatus: "PAID";
-  deliveryStatus: DeliveryStatus;
-  receiverName: string;
-  city: string;
-  totalAmount: number;
-  createdAt: string;
-  items: Array<{ productId: number; productName: string; quantity: number }>;
-  history: Array<{
-    fromStatus: DeliveryStatus;
-    toStatus: DeliveryStatus;
-    changedAt: string;
-    changedBy: string | null;
-  }>;
-};
-export type ApiReturnRequest = {
+export type ProductDetail = {
   id: number;
-  orderId: number;
-  status: ReturnStatus;
-  reason: string | null;
-  restockable: boolean;
+  categoryId: number;
+  categoryName: string;
+  sku: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  costPrice: number;
+  listPrice: number;
   createdAt: string;
   updatedAt: string;
-  items: Array<{
-    orderItemId: number;
-    productId: number;
-    productName: string;
+  productVariants: Array<{
+    id: number;
+    color: string | null;
+    size: string | null;
     quantity: number;
+    reservedQuantity: number;
+    holdingQuantity: number;
+    availableQuantity: number;
+  }>;
+  productImages: Array<{
+    id: number;
+    imageUrl: string;
+    displayOrder: number;
+    primary: boolean;
   }>;
 };
-export type ReturnableOrder = {
-  orderId: number;
-  receiverName: string;
-  city: string;
-  totalAmount: number;
+export type Category = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
   createdAt: string;
-  items: Array<{
-    orderItemId: number;
-    productId: number;
-    productName: string;
-    quantity: number;
-    returnedQuantity: number;
-    returnableQuantity: number;
-  }>;
+  updatedAt: string;
 };
-export type CreateReturnRequest = {
-  orderId: number;
-  reason: string | null;
-  items: Array<{ orderItemId: number; quantity: number }>;
+export type CategoryInput = {
+  name: string;
+  slug: string;
+  description?: string | null;
+};
+export type OrderSummary = {
+  id: number;
+  orderRef: string;
+  customer: string;
+  product: string;
+  quantity: number;
+  totalAmount: number;
+  status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED";
+  paymentStatus: "UNPAID" | "PENDING" | "SUCCESS" | "FAILED" | "EXPIRED";
+  deliveryStatus: "NONE" | "PREPARING" | "SHIPPED" | "DELIVERED";
+  createdAt: string;
+};
+export type PaymentResult = "SUCCESS" | "FAILED" | "EXPIRED";
+export type InventoryItem = {
+  productId: number;
+  variantId: number;
+  productName: string;
+  color: string | null;
+  size: string | null;
+  onHandStock: number;
+  reservedStock: number;
+  holdingStock: number;
+  availableStock: number;
+  lowStockThreshold: number;
+  lowStock: boolean;
 };
 export type ReceivingResponse = {
   id: number;
   productId: number;
+  variantId: number;
   productName: string;
   quantity: number;
   supplierName: string | null;
   note: string | null;
   createdAt: string;
-  createdBy: string | null;
   onHandStock: number;
   reservedStock: number;
   availableStock: number;
 };
-export type PaymentResponse = {
+export type DeliveryOrder = {
+  orderId: number;
+  orderStatus: string;
+  deliveryStatus: "NONE" | "PREPARING" | "SHIPPED" | "DELIVERED";
+  receiverName: string;
+  city: string;
+  totalAmount: number;
+  createdAt: string;
+  items: Array<{ productId: number; productName: string; variantId: number; quantity: number }>;
+  history: Array<{ fromStatus: string; toStatus: string; changedAt: string; changedBy: number | null }>;
+};
+export type ApiReturnRequest = {
   id: number;
   orderId: number;
-  method: "CARD";
-  status: "SUCCESS" | "FAILED" | "EXPIRED";
-  amount: number;
-  paidAt: string | null;
-  failedReason: string | null;
+  status: "REQUESTED" | "APPROVED" | "RESTOCKED" | "REJECTED";
+  reason: string | null;
+  restockable: boolean | null;
   createdAt: string;
-  orderStatus: string;
+  updatedAt: string;
+  items: Array<{ orderItemId: number; productId: number; variantId: number; productName: string; quantity: number }>;
 };
-
-export interface ShopflowApi {
-  getSession(): Promise<SessionResponse>;
-  login(credentials: {
-    username: string;
-    password: string;
-  }): Promise<SessionUser>;
-  logout(): Promise<void>;
-  getProducts(): Promise<ProductSummary[]>;
-  getProduct(id: number): Promise<ProductDetail>;
-  createOrder(input: CreateOrderRequest): Promise<OrderResponse>;
-  simulatePayment(
-    orderRef: string,
-    result: "SUCCESS" | "FAILED" | "EXPIRED",
-    failureReason?: string,
-  ): Promise<PaymentResponse>;
-  getInventory(): Promise<InventoryItem[]>;
-  adjustInventory(
-    productId: number,
-    delta: number,
-    reason: string,
-  ): Promise<InventoryItem>;
-  updateThreshold(
-    productId: number,
-    lowStockThreshold: number | null,
-  ): Promise<InventoryItem>;
-  receiveStock(input: {
-    productId: number;
-    quantity: number;
-    supplierName?: string | null;
-    note?: string | null;
-  }): Promise<ReceivingResponse>;
-  getDeliveries(): Promise<DeliveryOrder[]>;
-  updateDelivery(
-    orderId: number,
-    toStatus: DeliveryStatus,
-  ): Promise<DeliveryOrder>;
-  getReturns(): Promise<ApiReturnRequest[]>;
-  getReturnableOrders(): Promise<ReturnableOrder[]>;
-  createReturn(input: CreateReturnRequest): Promise<ApiReturnRequest>;
-  updateReturn(
-    returnId: number,
-    toStatus: ReturnStatus,
-    restockable?: boolean,
-  ): Promise<ApiReturnRequest>;
-}
+export type DashboardSummary = {
+  range: "7d" | "30d" | "90d";
+  revenue: number;
+  orderCount: number;
+  lowStockCount: number;
+  from: string;
+  to: string;
+};
+export type CreateOrderRequest = {
+  customer: { fullName: string; email?: string | null; phone?: string | null };
+  shippingAddress: { receiverName: string; phone: string; addressLine: string; district?: string | null; city: string };
+  paymentMethod: "CARD";
+  items: Array<{ productId: number; quantity: number }>;
+};
+export type OrderResponse = {
+  id: number;
+  orderRef: string;
+  status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED";
+  deliveryStatus: string;
+  paymentMethod: string;
+  totalAmount: number;
+  customer: { fullName: string; email: string | null; phone: string | null };
+  shippingAddress: { receiverName: string; phone: string; addressLine: string; district: string | null; city: string };
+  items: Array<{ productId: number; productName: string; variantId: number; unitPrice: number; quantity: number; lineTotal: number }>;
+  createdAt: string;
+};
+export type PaymentResponse = { id: number; orderId: number; method: string; status: string; amount: number; paidAt: string | null; failedReason: string | null; createdAt: string; orderStatus: string };
 
 export const API_ENDPOINTS = {
-  session: "/auth/session",
-  login: "/auth/login",
-  logout: "/auth/logout",
+  session: "/api/auth/session",
+  login: "/api/auth/login",
+  register: "/api/auth/register",
+  logout: "/api/auth/logout",
   products: "/products",
+  product: (id: number) => `/products/${id}`,
+  categories: "/categories",
+  category: (id: number) => `/categories/${id}`,
+  dashboard: "/dashboard/summary",
   orders: "/orders",
-  payments: (orderRef: string) =>
-    `/orders/${encodeURIComponent(orderRef)}/payments`,
+  order: (id: number) => `/orders/${id}`,
+  payment: (orderRef: string) => `/orders/${encodeURIComponent(orderRef)}/payments`,
   inventory: "/inventory",
-  adjustment: (productId: number) => `/inventory/${productId}/adjustments`,
-  threshold: (productId: number) => `/inventory/${productId}/threshold`,
-  receiving: "/receivings",
+  adjustment: (variantId: number) => `/inventory/variants/${variantId}/adjustments`,
+  threshold: (productId: number) => `/inventory/products/${productId}/threshold`,
+  receivings: "/receivings",
   deliveries: "/deliveries",
   delivery: (orderId: number) => `/orders/${orderId}/delivery`,
   returns: "/returns",
   returnableOrders: "/returns/orders",
-  return: (returnId: number) => `/returns/${returnId}`,
+  return: (id: number) => `/returns/${id}`,
 } as const;
+
+function queryString(query: PageQuery) {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    size: String(query.size),
+  });
+  if (query.query?.trim()) params.set("q", query.query.trim());
+  if (query.categoryId !== undefined)
+    params.set("categoryId", String(query.categoryId));
+  if (query.minPrice !== undefined)
+    params.set("minPrice", String(query.minPrice));
+  if (query.maxPrice !== undefined)
+    params.set("maxPrice", String(query.maxPrice));
+  if (query.sort) params.set("sort", query.sort);
+  return params.toString();
+}
+
+export interface ShopflowApi {
+  getSession(): Promise<SessionResponse>;
+  login(credentials: { email: string; password: string }): Promise<SessionUser>;
+  register(input: {
+    email: string;
+    password: string;
+    displayName: string;
+  }): Promise<SessionUser>;
+  logout(): Promise<void>;
+  getProducts(query: PageQuery): Promise<ApiPage<ProductListItem>>;
+  getProduct(id: number): Promise<ProductDetail>;
+  getCategories(query: Pick<PageQuery, "page" | "size">): Promise<ApiPage<Category>>;
+  createCategory(input: CategoryInput): Promise<Category>;
+  updateCategory(id: number, input: CategoryInput): Promise<Category>;
+  deleteCategory(id: number): Promise<void>;
+  getDashboard(range: DashboardSummary["range"]): Promise<DashboardSummary>;
+  getOrders(query: Pick<PageQuery, "page" | "size">): Promise<ApiPage<OrderSummary>>;
+  createOrder(input: CreateOrderRequest): Promise<OrderResponse>;
+  simulatePayment(orderRef: string, result: "SUCCESS" | "FAILED" | "EXPIRED", failureReason?: string): Promise<PaymentResponse>;
+  getInventory(): Promise<InventoryItem[]>;
+  adjustInventory(variantId: number, delta: number, reason: string): Promise<InventoryItem>;
+  updateThreshold(productId: number, lowStockThreshold: number): Promise<void>;
+  listReceivings(limit?: number): Promise<ReceivingResponse[]>;
+  receiveStock(input: { variantId: number; quantity: number; supplierName?: string; note?: string }): Promise<ReceivingResponse>;
+  getDeliveries(): Promise<DeliveryOrder[]>;
+  updateDelivery(orderId: number, toStatus: DeliveryOrder["deliveryStatus"]): Promise<DeliveryOrder>;
+  getReturns(limit?: number): Promise<ApiReturnRequest[]>;
+  getReturnableOrders(): Promise<unknown[]>;
+  createReturn(input: { orderId: number; reason?: string | null; items: Array<{ orderItemId: number; quantity: number }> }): Promise<ApiReturnRequest>;
+  updateReturn(id: number, toStatus: ApiReturnRequest["status"], restockable?: boolean): Promise<ApiReturnRequest>;
+}
 
 export const shopflowApi: ShopflowApi = {
   getSession: () => apiRequest<SessionResponse>(API_ENDPOINTS.session),
-  login: (credentials: { username: string; password: string }) =>
+  login: (credentials) =>
     apiRequest<SessionUser>(API_ENDPOINTS.login, {
       method: "POST",
       body: JSON.stringify(credentials),
     }),
+  register: (input) =>
+    apiRequest<SessionUser>(API_ENDPOINTS.register, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   logout: () => apiRequest<void>(API_ENDPOINTS.logout, { method: "POST" }),
-  getProducts: () => apiRequest<ProductSummary[]>(API_ENDPOINTS.products),
-  getProduct: (id: number) =>
-    apiRequest<ProductDetail>(`${API_ENDPOINTS.products}/${id}`),
-  createOrder: (input: CreateOrderRequest) =>
-    apiRequest<OrderResponse>(API_ENDPOINTS.orders, {
+  getProducts: (query) =>
+    apiRequest<ApiPage<ProductListItem>>(
+      `${API_ENDPOINTS.products}?${queryString(query)}`,
+    ),
+  getProduct: (id) =>
+    apiRequest<ProductDetail>(API_ENDPOINTS.product(id)),
+  getCategories: (query) =>
+    apiRequest<ApiPage<Category>>(
+      `${API_ENDPOINTS.categories}?${queryString(query)}`,
+    ),
+  createCategory: (input) =>
+    apiRequest<Category>(API_ENDPOINTS.categories, {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  simulatePayment: (
-    orderRef: string,
-    result: "SUCCESS" | "FAILED" | "EXPIRED",
-    failureReason?: string,
-  ) =>
-    apiRequest<PaymentResponse>(API_ENDPOINTS.payments(orderRef), {
-      method: "POST",
-      body: JSON.stringify({
-        result,
-        ...(failureReason ? { failureReason } : {}),
-      }),
-    }),
-  getInventory: () => apiRequest<InventoryItem[]>(API_ENDPOINTS.inventory),
-  adjustInventory: (productId: number, delta: number, reason: string) =>
-    apiRequest<InventoryItem>(API_ENDPOINTS.adjustment(productId), {
-      method: "POST",
-      body: JSON.stringify({ delta, reason }),
-    }),
-  updateThreshold: (productId: number, lowStockThreshold: number | null) =>
-    apiRequest<InventoryItem>(API_ENDPOINTS.threshold(productId), {
+  updateCategory: (id, input) =>
+    apiRequest<Category>(API_ENDPOINTS.category(id), {
       method: "PUT",
-      body: JSON.stringify({ lowStockThreshold }),
-    }),
-  receiveStock: (input: {
-    productId: number;
-    quantity: number;
-    supplierName?: string | null;
-    note?: string | null;
-  }) =>
-    apiRequest<ReceivingResponse>(API_ENDPOINTS.receiving, {
-      method: "POST",
       body: JSON.stringify(input),
     }),
+  deleteCategory: (id) =>
+    apiRequest<void>(API_ENDPOINTS.category(id), { method: "DELETE" }),
+  getDashboard: (range) => apiRequest<DashboardSummary>(`${API_ENDPOINTS.dashboard}?range=${range}`),
+  getOrders: (query) => apiRequest<ApiPage<OrderSummary>>(`${API_ENDPOINTS.orders}?${queryString(query)}`),
+  createOrder: (input) => apiRequest<OrderResponse>(API_ENDPOINTS.orders, { method: "POST", body: JSON.stringify(input) }),
+  simulatePayment: (orderRef, result, failureReason) => apiRequest<PaymentResponse>(API_ENDPOINTS.payment(orderRef), {
+    method: "POST", body: JSON.stringify({ result, ...(failureReason ? { failureReason } : {}) }),
+  }),
+  getInventory: () => apiRequest<InventoryItem[]>(API_ENDPOINTS.inventory),
+  adjustInventory: (variantId, delta, reason) => apiRequest<InventoryItem>(API_ENDPOINTS.adjustment(variantId), {
+    method: "POST", body: JSON.stringify({ delta, reason }),
+  }),
+  updateThreshold: (productId, lowStockThreshold) => apiRequest<void>(API_ENDPOINTS.threshold(productId), {
+    method: "PUT", body: JSON.stringify({ lowStockThreshold }),
+  }),
+  listReceivings: (limit = 50) => apiRequest<ReceivingResponse[]>(`${API_ENDPOINTS.receivings}?limit=${limit}`),
+  receiveStock: (input) => apiRequest<ReceivingResponse>(API_ENDPOINTS.receivings, { method: "POST", body: JSON.stringify(input) }),
   getDeliveries: () => apiRequest<DeliveryOrder[]>(API_ENDPOINTS.deliveries),
-  updateDelivery: (orderId: number, toStatus: DeliveryStatus) =>
-    apiRequest<DeliveryOrder>(API_ENDPOINTS.delivery(orderId), {
-      method: "PATCH",
-      body: JSON.stringify({ toStatus }),
-    }),
-  getReturns: () => apiRequest<ApiReturnRequest[]>(API_ENDPOINTS.returns),
-  getReturnableOrders: () =>
-    apiRequest<ReturnableOrder[]>(API_ENDPOINTS.returnableOrders),
-  createReturn: (input: CreateReturnRequest) =>
-    apiRequest<ApiReturnRequest>(API_ENDPOINTS.returns, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  updateReturn: (
-    returnId: number,
-    toStatus: ReturnStatus,
-    restockable?: boolean,
-  ) =>
-    apiRequest<ApiReturnRequest>(API_ENDPOINTS.return(returnId), {
-      method: "PATCH",
-      body: JSON.stringify({
-        toStatus,
-        ...(restockable === undefined ? {} : { restockable }),
-      }),
-    }),
+  updateDelivery: (orderId, toStatus) => apiRequest<DeliveryOrder>(API_ENDPOINTS.delivery(orderId), {
+    method: "PATCH", body: JSON.stringify({ toStatus }),
+  }),
+  getReturns: (limit = 50) => apiRequest<ApiReturnRequest[]>(`${API_ENDPOINTS.returns}?limit=${limit}`),
+  getReturnableOrders: () => apiRequest<unknown[]>(API_ENDPOINTS.returnableOrders),
+  createReturn: (input) => apiRequest<ApiReturnRequest>(API_ENDPOINTS.returns, { method: "POST", body: JSON.stringify(input) }),
+  updateReturn: (id, toStatus, restockable) => apiRequest<ApiReturnRequest>(API_ENDPOINTS.return(id), {
+    method: "PATCH", body: JSON.stringify({ toStatus, ...(restockable === undefined ? {} : { restockable }) }),
+  }),
 };
 
-export type CreateOrderRequest = {
-  customer: { fullName: string; email?: string | null; phone?: string | null };
-  shippingAddress: {
-    receiverName: string;
-    phone: string;
-    addressLine: string;
-    district?: string | null;
-    city: string;
-  };
-  paymentMethod: "CARD";
-  items: Array<{ productId: number; quantity: number }>;
-};
-
-export type OrderResponse = {
-  id: number;
-  orderRef: string;
-  status: "PENDING_PAYMENT";
-  deliveryStatus: "NONE";
-  paymentMethod: "CARD";
-  totalAmount: number;
-  createdAt: string;
-};
-
-export function paginate<T>(items: T[], query: PageQuery): PageResult<T> {
+export function paginate<T>(items: T[], query: PageQuery) {
   const size = Math.max(1, Math.min(100, Math.floor(query.size) || 10));
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / size));
   const page = Math.max(1, Math.min(totalPages, Math.floor(query.page) || 1));
   const start = (page - 1) * size;
-  return {
-    items: items.slice(start, start + size),
-    total,
-    page,
-    size,
-    totalPages,
-  };
+  return { items: items.slice(start, start + size), total, page, size, totalPages };
 }

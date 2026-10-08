@@ -6,9 +6,16 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        target: "http://localhost:18081",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+      "/products": {
+        target: "http://localhost:18081",
+        changeOrigin: true,
+      },
+      "/categories": {
+        target: "http://localhost:18081",
+        changeOrigin: true,
       },
     },
   },

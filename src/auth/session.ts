@@ -57,9 +57,18 @@ export function setDemoRole(role: UserRole | null) {
   localStorage.setItem("shopflow.demo-role", role ?? "GUEST");
 }
 
-export async function signIn(username: string, password: string) {
-  currentUser.value = await shopflowApi.login({ username, password });
+export async function signIn(email: string, password: string) {
+  currentUser.value = await shopflowApi.login({ email, password });
   sessionResolved.value = true;
+}
+
+export async function signUp(input: {
+  email: string;
+  password: string;
+  displayName: string;
+}) {
+  await shopflowApi.register(input);
+  await signIn(input.email, input.password);
 }
 
 export async function signOut() {

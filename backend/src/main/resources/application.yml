@@ -1,0 +1,35 @@
+server:
+  port: ${SERVER_PORT:18081}
+
+spring:
+  application:
+    name: modern-shop-flow-catalog-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:55432/shopflow}
+    username: ${DB_USERNAME:shopflow}
+    password: ${DB_PASSWORD:shopflow}
+  jackson:
+    default-property-inclusion: non_null
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /docs
+
+app:
+  bootstrap:
+    owner:
+      email: ${BOOTSTRAP_OWNER_EMAIL:}
+      password: ${BOOTSTRAP_OWNER_PASSWORD:}
+      display-name: ${BOOTSTRAP_OWNER_DISPLAY_NAME:Shop Owner}
+    warehouse:
+      email: ${BOOTSTRAP_WAREHOUSE_EMAIL:}
+      password: ${BOOTSTRAP_WAREHOUSE_PASSWORD:}
+      display-name: ${BOOTSTRAP_WAREHOUSE_DISPLAY_NAME:Warehouse Staff}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

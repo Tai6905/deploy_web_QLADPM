@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: modernshopflow-postgres
+    environment:
+      POSTGRES_DB: shopflow
+      POSTGRES_USER: shopflow
+      POSTGRES_PASSWORD: shopflow
+    ports:
+      - "55432:5432"
+    volumes:
+      - modernshopflow-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  modernshopflow-postgres-data:

@@ -1,5 +1,7 @@
 export type Product = {
   id: number;
+  categoryId?: number;
+  variantId?: number;
   name: string;
   sku: string;
   category: string;
@@ -12,6 +14,9 @@ export type Product = {
 
 export type Order = {
   id: string;
+  apiId?: number;
+  orderRef?: string;
+  deliveryStatus?: "NONE" | "PREPARING" | "SHIPPED" | "DELIVERED";
   customer: string;
   date: string;
   total: number;
@@ -23,6 +28,9 @@ export type Order = {
 
 export type ReturnRequest = {
   id: string;
+  apiId?: number;
+  orderId?: number;
+  restockable?: boolean | null;
   order: string;
   customer: string;
   reason: string;

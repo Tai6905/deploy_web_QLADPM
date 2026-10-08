@@ -1,0 +1,32 @@
+@baseUrl = http://localhost:18081
+
+### Register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+    "email": "customer@example.com",
+    "password": "Password123!",
+    "displayName": "Nguyen Van A"
+}
+
+### Login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "customer@example.com",
+    "password": "Password123!"
+}
+
+### Read session and receive CSRF cookie
+GET {{baseUrl}}/api/auth/session
+
+### Browse products (page is zero-based)
+GET {{baseUrl}}/products?page=0&size=20&sort=newest
+
+### Filter products
+GET {{baseUrl}}/products?page=0&size=20&q=flow&minPrice=1000&maxPrice=1000000&sort=priceAsc
+
+### Browse categories
+GET {{baseUrl}}/categories?page=0&size=100

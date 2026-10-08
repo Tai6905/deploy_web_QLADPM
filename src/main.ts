@@ -23,8 +23,13 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   if (dataSource === "api") await restoreSession();
   const page = to.path.slice(1);
-  if (page === "login" || page === "forbidden" || page === "customer")
+  if (page === "login") {
+    if (currentRole.value === "WAREHOUSE") return "/inventory";
+    if (currentRole.value === "CUSTOMER") return "/customer";
+    if (currentRole.value === "SHOP_OWNER") return "/overview";
     return true;
+  }
+  if (page === "forbidden" || page === "customer") return true;
   if (!currentRole.value)
     return { path: "/login", query: { redirect: to.fullPath } };
   return canAccessPage(page, currentRole.value) ? true : "/forbidden";
