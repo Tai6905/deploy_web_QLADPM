@@ -12,6 +12,10 @@ export default defineConfig({
       "/products": {
         target: "http://localhost:18081",
         changeOrigin: true,
+        bypass: (request) =>
+          request.headers.accept?.includes("text/html")
+            ? "/index.html"
+            : undefined,
       },
       "/categories": {
         target: "http://localhost:18081",
