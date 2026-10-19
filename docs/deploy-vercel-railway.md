@@ -38,25 +38,105 @@ Vercel nhận `/backend/...` rồi chuyển tiếp tới backend. Trình duyệt
 
 ## 4. Deploy frontend trên Vercel
 
-1. Chọn **Add New → Project**, import cùng repo GitHub.
-2. **Root Directory**: thư mục gốc repo, **Framework Preset**: Vite. `vercel.json` đã đặt build `npm run build`, output `dist`, install `npm ci`.
-3. Trong **Environment Variables**, đặt cho Production và Preview:
+### 4.1. Kiểm tra backend và đẩy cấu hình lên GitHub
 
-```env
-VITE_DATA_SOURCE=api
-VITE_API_BASE_URL=/backend
+Mở `https://deploywebqladpm-production.up.railway.app/api/auth/session`. Backend sẵn sàng khi trang trả JSON với `authenticated: false`. Nếu Railway vẫn đang crash hoặc URL trả 502, cần xem Deployment Logs để sửa backend; frontend vẫn có thể deploy nhưng đăng nhập/tải sản phẩm sẽ chưa hoạt động.
+
+File `vercel.json` hiện chuyển tiếp API tới:
+
+```json
+"destination": "https://deploywebqladpm-production.up.railway.app/:path*"
 ```
 
-4. Chọn Deploy. Nếu sửa biến sau lần build đầu, chọn Redeploy để frontend nhận giá trị mới.
-5. Trên Railway, thêm `CORS_ALLOWED_ORIGINS=https://TEN-WEB.vercel.app` theo domain frontend thật rồi redeploy backend. Khi dùng proxy, request trình duyệt vẫn cùng origin; cấu hình này cũng cho phép các preflight hợp lệ từ domain đã chọn. Không dùng `*` với cookie đăng nhập.
+Phải có `https://` ở đầu và giữ `/:path*` ở cuối. Lưu file, commit rồi push lên nhánh GitHub sẽ deploy. Vercel dùng mã trên GitHub, không tự lấy các thay đổi chưa push trong VS Code.
+
+### 4.2. Tạo project frontend
+
+1. Đăng nhập Vercel, vào Dashboard → **Add New → Project**.
+2. Trong **Import Git Repository**, tìm repo chứa dự án và bấm **Import**. Nếu chưa thấy repo, kiểm tra GitHub đã kết nối và Vercel có quyền đọc repo đó.
+3. Ở màn hình cấu hình, kiểm tra các giá trị:
+
+| Mục | Giá trị |
+| --- | --- |
+| Project Name | Tên tùy chọn, ví dụ `shopflow-doan` |
+| Framework Preset | `Vite` |
+| Root Directory | Thư mục gốc repo, nơi có `package.json` và `vercel.json`; không chọn `backend` hoặc `dist` |
+| Install Command | `npm ci` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+
+Các lệnh đã được đặt trong `vercel.json`; không cần ghi đè nếu Vercel đã đọc đúng.
+
+### 4.3. Thêm biến môi trường và deploy
+
+Mở phần **Environment Variables**, thêm riêng hai dòng (Name và Value là hai ô khác nhau, không nhập dấu ngoặc kép):
+
+| Name | Value |
+| --- | --- |
+| `VITE_DATA_SOURCE` | `api` |
+| `VITE_API_BASE_URL` | `/backend` |
+
+Áp dụng cho **Production** và **Preview** nếu màn hình có lựa chọn môi trường. `/backend` là đường dẫn proxy trong `vercel.json`, không thay nó bằng URL Railway. Mật khẩu Aiven vẫn chỉ nhập trong Variables của Railway.
+
+Bấm **Deploy**, đợi build hoàn tất. Khi trạng thái **Ready**, mở domain production trong mục **Domains**, ví dụ `https://shopflow-doan.vercel.app`. Đây chỉ là ví dụ; dùng domain Vercel thực sự cấp cho project của bạn.
+
+Nếu project đã tạo trước đó: vào **Settings → Environment Variables** để thêm/sửa hai biến trên, sau đó vào **Deployments → chọn deployment mới nhất → menu dấu ba chấm → Redeploy**. Biến `VITE_*` được đưa vào frontend lúc build, nên lưu biến xong cần build/deploy lại.
+
+### 4.4. Khai báo domain frontend ở Railway
+
+Mở Railway → chọn service backend → **Variables** → **New Variable**, nhập:
+
+```env
+CORS_ALLOWED_ORIGINS=https://shopflow-doan.vercel.app
+```
+
+Thay domain ví dụ bằng domain production thật. Không thêm `/login`, không thêm dấu `/` ở cuối và không dùng `*`. Lưu thay đổi rồi **Deploy/Apply Changes** theo nút Railway đang hiển thị; đợi backend healthy trở lại. Nếu có nhiều domain cần dùng, liệt kê các origin cụ thể, ngăn bằng dấu phẩy.
+
+Khi dùng proxy, request trình duyệt vẫn cùng origin; cấu hình này cũng cho phép các preflight hợp lệ từ domain đã chọn. Nếu sau này mở frontend bằng domain Preview khác, origin đó cũng cần được cho phép.
 
 ## 5. Kiểm tra trên URL Vercel
 
-1. Mở `/backend/api/auth/session`: nhận JSON. Nếu nhận HTML, kiểm tra URL backend trong `vercel.json` và thứ tự rewrites.
-2. Mở `/login`, đăng nhập `shop@gmail.com` bằng mật khẩu mặc định bạn yêu cầu, kiểm tra trang nhân viên.
-3. Đăng xuất, thử lần lượt tài khoản bán hàng, kho và khách hàng để kiểm tra đúng quyền.
-4. Với tài khoản khách, đặt một đơn thử và kiểm tra `/purchases`, mở chi tiết theo dõi đơn. Đơn thử trên web sẽ được lưu thật vào database; thanh toán vẫn là mô phỏng.
-5. Tải lại trực tiếp `/profile` và `/purchases`: không được lỗi 404. Đăng xuất rồi mở lại trang cá nhân: phải yêu cầu đăng nhập.
+Trong các URL bên dưới, thay `TEN-WEB.vercel.app` bằng domain frontend thật.
+
+### 5.1. Kiểm tra chuyển tiếp API trước
+
+Mở `https://TEN-WEB.vercel.app/backend/api/auth/session`. Khi chưa đăng nhập, phải thấy JSON có `authenticated: false` (có thể kèm các trường khác). Không cần sao chép hay chia sẻ `csrfToken`.
+
+| Kết quả | Kiểm tra tiếp |
+| --- | --- |
+| JSON có `authenticated: false` | Proxy và endpoint session đã hoạt động; tiếp tục đăng nhập |
+| 502 hoặc Application Failed to Respond | Thử URL session trực tiếp trên Railway, kiểm tra backend và target port |
+| HTML hoặc giao diện web thay cho JSON | Kiểm tra `destination` HTTPS, thứ tự rewrites (proxy trước fallback) và commit đã deploy |
+| 404 | Kiểm tra đúng domain/path, `vercel.json` nằm ở Root Directory đã chọn |
+
+### 5.2. Kiểm tra đăng nhập và phân quyền
+
+Mở `https://TEN-WEB.vercel.app/login`. Đăng nhập từng tài khoản trong bảng, dùng mật khẩu mặc định đã cấu hình theo yêu cầu của bạn. Đăng xuất trước khi thử tài khoản tiếp theo.
+
+| Tài khoản | Kiểm tra |
+| --- | --- |
+| `shop@gmail.com` | Vào trang tổng quan, sản phẩm, đơn hàng và `/staff` |
+| `nhanvien@shopflow.local` | Vào đơn hàng/giao hàng; không có quyền quản lý nhân viên hoặc chỉnh tồn kho |
+| `kho@shopflow.local` | Vào tồn kho, nhập kho, giao hàng; không có quyền quản lý nhân viên |
+| `khachhang@shopflow.local` | Vào cửa hàng, `/profile`, `/purchases`; không có quyền vào trang quản trị |
+
+Sau khi đăng nhập thành công, tải lại `/backend/api/auth/session` trên cùng domain Vercel: trường `authenticated` phải là `true`. Nếu giao diện báo đăng nhập thành công nhưng tải lại bị mất đăng nhập, kiểm tra request session/cookie trong bước 5.4.
+
+### 5.3. Kiểm tra lịch sử, tải lại trang và đăng xuất
+
+1. Với tài khoản khách, vào `/customer`, thêm sản phẩm còn hàng vào giỏ, điền thông tin nhận hàng và đặt một đơn thử.
+2. Vào `/purchases`, đơn vừa đặt phải xuất hiện; mở chi tiết để xem sản phẩm, số tiền và tiến trình giao hàng. Đơn thử trên web sẽ được lưu thật vào Aiven; thanh toán vẫn là mô phỏng.
+3. Mở trực tiếp `/profile`, `/purchases` rồi nhấn F5: không được lỗi 404 và phiên đăng nhập phải còn.
+4. Đăng xuất, mở lại `/profile`: phải chuyển tới trang đăng nhập.
+
+### 5.4. Nếu gặp lỗi, lấy thông tin ở đâu
+
+Nhấn **F12 → Network**, thử lại thao tác lỗi, chọn request màu đỏ hoặc request `login`/`session`. Ghi lại **Request URL**, **Status Code** và thông báo trong tab **Response**. Không chia sẻ Request Payload của login, Cookie, Set-Cookie hay các header/token xác thực.
+
+- Build frontend thất bại: Vercel → Deployments → deployment lỗi → Build Logs, lấy lỗi đầu tiên.
+- Backend vẫn crash: Railway → deployment backend → Deployment Logs, lấy phần `ERROR`/`Caused by` và mã thoát nếu có.
+- Login trả 401: kiểm tra tài khoản/mật khẩu hoặc tài khoản bị khóa.
+- Request ghi dữ liệu trả 403: kiểm tra quyền của vai trò và CSRF; không tắt CSRF để chữa lỗi.
 
 Có thể chạy kiểm tra tự động qua URL đã deploy từ PowerShell ở thư mục gốc repo (đọc bốn tài khoản trong file local, không in mật khẩu):
 
