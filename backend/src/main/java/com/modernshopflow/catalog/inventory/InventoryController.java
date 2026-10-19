@@ -4,6 +4,7 @@ import com.modernshopflow.catalog.inventory.InventoryDtos.AdjustmentRequest;
 import com.modernshopflow.catalog.inventory.InventoryDtos.InventoryItem;
 import com.modernshopflow.catalog.inventory.InventoryDtos.ThresholdRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,9 +37,10 @@ public class InventoryController {
     }
 
     @PutMapping("/products/{productId}/threshold")
-    public void updateThreshold(
+    public ResponseEntity<Void> updateThreshold(
             @PathVariable long productId,
             @Valid @RequestBody ThresholdRequest request) {
         service.updateThreshold(productId, request);
+        return ResponseEntity.noContent().build();
     }
 }

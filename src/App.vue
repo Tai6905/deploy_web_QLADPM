@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onUnmounted, reactive, ref, watch } from "vue";
+import { useCart } from "./cart";
 import { useRoute, useRouter } from "vue-router";
 import {
   Activity,
@@ -13,7 +14,6 @@ import {
   ChevronDown,
   CircleHelp,
   ClipboardList,
-  Download,
   LayoutDashboard,
   Menu,
   PackageCheck,
@@ -43,6 +43,7 @@ import {
 import {
   paginate,
   shopflowApi,
+  roleLabels,
   type ApiPage,
   type Category,
   type DashboardSummary,
@@ -50,21 +51,27 @@ import {
   type InventoryItem,
   type OrderSummary,
   type ProductListItem,
+  type ReturnableOrder,
   type UserRole,
 } from "./api/shopflowApi";
-import { canAccessPage, canPerform } from "./auth/permissions";
+import { canAccessPage, canPerform, landingPage } from "./auth/permissions";
 import {
   currentRole,
   currentUser,
   dataSource,
   setDemoRole,
-  signUp,
-  signIn,
   signOut,
 } from "./auth/session";
 import PaginationBar from "./components/PaginationBar.vue";
 import CategoryManager from "./components/CategoryManager.vue";
 import ProductDetailDialog from "./components/ProductDetailDialog.vue";
+import LoginPage from "./views/LoginPage.vue";
+import OrdersDeliveryPage from "./views/OrdersDeliveryPage.vue";
+import ProductsInventoryPage from "./views/ProductsInventoryPage.vue";
+import ReturnsPage from "./views/ReturnsPage.vue";
+import StaffPage from "./views/StaffPage.vue";
+import AccountPage from "./views/AccountPage.vue";
+import AnimatedNumber from "./components/AnimatedNumber.vue";
 import {
   toDeliveryOrder,
   toInventoryProduct,
@@ -80,6 +87,8 @@ const router = useRouter();
 const page = computed(() =>
   route.path === "/login" ||
   route.path === "/forbidden" ||
+  route.path === "/profile" ||
+  route.path === "/purchases" ||
   route.path === "/customer"
     ? route.path.slice(1)
     : String(route.params.page || "overview"),
@@ -88,23 +97,28 @@ const search = ref("");
 const mobileMenuOpen = ref(false);
 const modalKind = ref<ModalKind>(null);
 const toast = ref("");
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
 const formError = ref("");
 const selectedProductId = ref<number | null>(null);
-const loginForm = reactive({ email: "", password: "", displayName: "" });
-const loginMode = ref<"login" | "register">("login");
-const loginError = ref("");
 const apiProductPage = ref<ApiPage<ProductListItem> | null>(null);
 const apiOrderPage = ref<ApiPage<OrderSummary> | null>(null);
 const apiDashboard = ref<DashboardSummary | null>(null);
 const apiInventory = ref<InventoryItem[]>([]);
 const apiDeliveries = ref<DeliveryOrder[]>([]);
+const apiOrderProducts = ref<Product[]>([]);
+const apiReturnableOrders = ref<ReturnableOrder[]>([]);
 const apiCategories = ref<Category[]>([]);
+const apiCategoriesLoaded = ref(false);
 const categoryFilter = ref("all");
 const sortFilter = ref<"newest" | "priceAsc" | "priceDesc">("newest");
 const apiProductLoading = ref(false);
+const apiProductSaving = ref(false);
+const apiOrderSaving = ref(false);
+const apiReturnSaving = ref(false);
 const apiProductError = ref("");
 const apiWorkspaceLoading = ref(false);
 const apiWorkspaceError = ref("");
+const apiStockSaving = ref(false);
 const categoryManagerOpen = ref(false);
 const categorySaving = ref(false);
 const categoryError = ref("");
@@ -112,7 +126,8 @@ const productDetailId = ref<number | null>(null);
 const productDetail = computed(
   () => products.value.find((product) => product.id === productDetailId.value) ?? null,
 );
-const cart = ref<Record<number, number>>({});
+const { cart, cartItems, cartTotal, add: addCartItem, adjust: adjustCart, refresh: refreshCart, clear: clearCart } =
+  useCart(localStorage, `shopflow.${dataSource}.cart.v1`);
 const products = ref<Product[]>(
   dataSource === "demo" ? readStore("shopflow.products", seedProducts) : [],
 );
@@ -123,10 +138,26 @@ const returns = ref<ReturnRequest[]>(
   dataSource === "demo" ? readStore("shopflow.returns", seedReturns) : [],
 );
 
+function toCatalogProduct(item: ProductListItem): Product {
+  return {
+    id: item.id,
+    categoryId: item.categoryId,
+    name: item.name,
+    sku: item.sku,
+    category: item.categoryName,
+    price: item.listPrice,
+    stock: item.availableQuantity,
+    threshold: 0,
+    color: "sage",
+    image: item.imageUrl || "",
+  };
+}
+
 const form = reactive({
   name: "",
   sku: "",
   category: "Đồ dùng",
+  categoryId: 0,
   price: 0,
   quantity: 1,
   customer: "",
@@ -189,10 +220,21 @@ const allNavGroups = [
     ],
   },
   {
+    label: "QUẢN TRỊ",
+    items: [{ title: "Tài khoản nhân viên", page: "staff", icon: Settings2 }],
+  },
+  {
     label: "KHO VẬN",
     items: [
       { title: "Tồn kho", page: "inventory", icon: PackageCheck },
       { title: "Nhập hàng", page: "receiving", icon: PackagePlus },
+    ],
+  },
+  {
+    label: "TÀI KHOẢN",
+    items: [
+      { title: "Thông tin cá nhân", page: "profile", icon: Settings2 },
+      { title: "Đơn mua của tôi", page: "purchases", icon: ShoppingBag },
     ],
   },
 ];
@@ -215,11 +257,11 @@ const pageNames: Record<string, string> = {
   delivery: "Giao hàng",
   receiving: "Nhập hàng",
   returns: "Đổi trả",
+  staff: "Nhân viên",
 };
 const title = computed(() => pageNames[page.value] || "Tổng quan");
 const actionLabel = computed(() => {
-  if (page.value === "products")
-    return dataSource === "api" ? "Catalog chỉ đọc" : "Thêm sản phẩm";
+  if (page.value === "products") return "Thêm sản phẩm";
   if (page.value === "inventory" || page.value === "receiving")
     return "Nhập hàng";
   if (page.value === "delivery") return "Quản lý đơn";
@@ -238,7 +280,9 @@ const matchingProducts = computed(() =>
       .toLowerCase()
       .includes(search.value.toLowerCase()) &&
       (categoryFilter.value === "all" ||
-        product.categoryId === Number(categoryFilter.value)),
+        (dataSource === "demo"
+          ? product.category === categoryOptions.value.find((item) => item.id === Number(categoryFilter.value))?.name
+          : product.categoryId === Number(categoryFilter.value))),
   ),
 );
 const matchingOrders = computed(() =>
@@ -255,9 +299,9 @@ const matchingReturns = computed(() =>
       .includes(search.value.toLowerCase()),
   ),
 );
-const currentPage = computed(() => Math.max(1, Number(route.query.page) || 1));
+const currentPage = computed(() => Math.max(1, Math.floor(Number(route.query.page)) || 1));
 const pageSize = computed(() =>
-  Math.max(1, Math.min(100, Number(route.query.pageSize) || 5)),
+  Math.max(1, Math.min(100, Math.floor(Number(route.query.pageSize)) || (page.value === "customer" ? 12 : 5))),
 );
 const productPage = computed(() => {
   if (
@@ -266,7 +310,7 @@ const productPage = computed(() => {
     (page.value === "customer" || page.value === "products")
   ) {
     return {
-      items: matchingProducts.value,
+      items: products.value,
       total: apiProductPage.value.totalItems,
       page: apiProductPage.value.page + 1,
       size: apiProductPage.value.size,
@@ -282,7 +326,7 @@ const productPage = computed(() => {
 const orderPage = computed(() =>
   dataSource === "api" && apiOrderPage.value && page.value === "orders"
     ? {
-        items: matchingOrders.value,
+        items: orders.value,
         total: apiOrderPage.value.totalItems,
         page: apiOrderPage.value.page + 1,
         size: apiOrderPage.value.size,
@@ -313,17 +357,6 @@ const activePageResult = computed(() =>
       ? returnPage.value
       : orderPage.value,
 );
-const cartItems = computed(() =>
-  products.value
-    .filter((product) => (cart.value[product.id] || 0) > 0)
-    .map((product) => ({ product, quantity: cart.value[product.id] || 0 })),
-);
-const cartTotal = computed(() =>
-  cartItems.value.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
-    0,
-  ),
-);
 const pendingOrders = computed(
   () => orders.value.filter((order) => order.status === "Chờ xác nhận").length,
 );
@@ -332,6 +365,20 @@ const salesTotal = computed(() =>
     .filter((order) => order.status !== "Đã hủy")
     .reduce((sum, order) => sum + order.total, 0),
 );
+const dashboardOrderCount = computed(() => apiDashboard.value?.orderCount ?? orders.value.length);
+const averagePaidOrder = computed(() => {
+  const count = apiDashboard.value?.paidOrderCount ?? orders.value.filter((item) => item.payment === "Đã thanh toán").length;
+  return count ? Math.round(salesTotal.value / count) : 0;
+});
+const revenueChart = computed(() => {
+  const days = apiDashboard.value?.dailyRevenue ?? [];
+  const max = Math.max(1, ...days.map((day) => day.revenue));
+  return {
+    points: days.map((day, index) => `${index * 700 / Math.max(days.length - 1, 1)},${180 - day.revenue / max * 160}`).join(" "),
+    labels: days.map((day) => day.date.slice(5).split("-").reverse().join("/")),
+    max,
+  };
+});
 const today = new Intl.DateTimeFormat("vi-VN", {
   weekday: "long",
   day: "numeric",
@@ -339,6 +386,12 @@ const today = new Intl.DateTimeFormat("vi-VN", {
   year: "numeric",
 }).format(new Date());
 let workspaceLoadId = 0;
+let catalogLoadId = 0;
+const debouncedSearch = ref("");
+const workspaceSearch = computed(() => page.value === "orders" ? debouncedSearch.value : "");
+const workspacePage = computed(() => page.value === "orders" ? currentPage.value : 1);
+const workspaceSize = computed(() => page.value === "orders" ? pageSize.value : 5);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 const categoryOptions = computed(() =>
   dataSource === "api"
     ? apiCategories.value
@@ -347,16 +400,30 @@ const categoryOptions = computed(() =>
       ),
 );
 
-watch(search, () => {
+watch(search, (value) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    debouncedSearch.value = value;
+    if (currentPage.value !== 1) void updatePagination(1);
+  }, 250);
+});
+watch([categoryFilter, sortFilter], () => {
   if (currentPage.value !== 1) void updatePagination(1);
 });
+watch(products, (items) => {
+  if (dataSource === "demo" || page.value === "customer" || page.value === "products") refreshCart(items);
+});
+onUnmounted(() => { clearTimeout(searchTimer); clearTimeout(toastTimer); ++catalogLoadId; ++workspaceLoadId; });
 watch(page, () => {
+  clearTimeout(searchTimer);
   search.value = "";
+  debouncedSearch.value = "";
   categoryFilter.value = "all";
 });
 watch(
-  [page, currentPage, pageSize, search, categoryFilter, sortFilter],
+  [page, currentPage, pageSize, debouncedSearch, categoryFilter, sortFilter],
   async ([activePage]) => {
+    const loadId = ++catalogLoadId;
     if (
       dataSource !== "api" ||
       (activePage !== "customer" && activePage !== "products")
@@ -371,45 +438,46 @@ watch(
         shopflowApi.getProducts({
           page: currentPage.value - 1,
           size: pageSize.value,
-          query: search.value || undefined,
+          query: debouncedSearch.value || undefined,
           categoryId:
             categoryFilter.value === "all"
               ? undefined
               : Number(categoryFilter.value),
           sort: sortFilter.value,
         }),
-        apiCategories.value.length
+        apiCategoriesLoaded.value
           ? Promise.resolve(null)
           : shopflowApi.getCategories({ page: 0, size: 100 }),
       ]);
+      if (loadId !== catalogLoadId) return;
+      if (catalog.totalPages > 0 && currentPage.value > catalog.totalPages) {
+        void updatePagination(catalog.totalPages);
+        return;
+      }
       apiProductPage.value = catalog;
-      if (categoryPage) apiCategories.value = categoryPage.items;
-      products.value = catalog.items.map((item) => ({
-        id: item.id,
-        categoryId: item.categoryId,
-        name: item.name,
-        sku: item.sku,
-        category: item.categoryName,
-        price: item.listPrice,
-        stock: item.availableQuantity,
-        threshold: 0,
-        color: "sage",
-        image: item.imageUrl || "",
-      }));
+      if (categoryPage) {
+        apiCategories.value = categoryPage.items;
+        apiCategoriesLoaded.value = true;
+      }
+      products.value = catalog.items.map(toCatalogProduct);
     } catch (error) {
+      if (loadId !== catalogLoadId) return;
       apiProductError.value =
         error instanceof Error ? error.message : "Không thể tải danh mục sản phẩm.";
     } finally {
-      apiProductLoading.value = false;
+      if (loadId === catalogLoadId) apiProductLoading.value = false;
     }
   },
   { immediate: true },
 );
 watch(
-  [page, currentPage, pageSize],
+  [page, workspacePage, workspaceSize, workspaceSearch],
   async ([activePage]) => {
-    if (dataSource !== "api" || ["customer", "products", "login", "forbidden"].includes(activePage)) return;
     const loadId = ++workspaceLoadId;
+    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases"].includes(activePage)) {
+      apiWorkspaceLoading.value = false;
+      return;
+    }
     apiWorkspaceLoading.value = true;
     apiWorkspaceError.value = "";
     try {
@@ -426,7 +494,7 @@ watch(
         apiInventory.value = inventory;
         products.value = inventory.map(toInventoryProduct);
       } else if (activePage === "orders") {
-        const result = await shopflowApi.getOrders({ page: currentPage.value - 1, size: pageSize.value });
+        const result = await shopflowApi.getOrders({ page: currentPage.value - 1, size: pageSize.value, query: debouncedSearch.value || undefined });
         if (loadId !== workspaceLoadId) return;
         apiOrderPage.value = result;
         orders.value = result.items.map(toOrderView);
@@ -436,8 +504,12 @@ watch(
         apiInventory.value = inventory;
         products.value = inventory.map(toInventoryProduct);
       } else if (activePage === "receiving") {
-        const receipts = await shopflowApi.listReceivings();
+        const [receipts, inventory] = await Promise.all([
+          shopflowApi.listReceivings(),
+          shopflowApi.getInventory(),
+        ]);
         if (loadId !== workspaceLoadId) return;
+        apiInventory.value = inventory;
         products.value = receipts.map(toReceivingProduct);
       } else if (activePage === "delivery") {
         const deliveries = await shopflowApi.getDeliveries();
@@ -445,9 +517,13 @@ watch(
         apiDeliveries.value = deliveries;
         orders.value = deliveries.map(toDeliveryOrder);
       } else if (activePage === "returns") {
-        const apiReturns = await shopflowApi.getReturns();
+        const [apiReturns, returnableOrders] = await Promise.all([
+          shopflowApi.getReturns(),
+          currentRole.value === "SHOP_OWNER" ? shopflowApi.getReturnableOrders() : Promise.resolve([]),
+        ]);
         if (loadId !== workspaceLoadId) return;
         returns.value = apiReturns.map(toReturnView);
+        apiReturnableOrders.value = returnableOrders;
       }
     } catch (error) {
       if (loadId === workspaceLoadId) {
@@ -477,103 +553,115 @@ function changeDemoRole(event: Event) {
 
 function selectDemoRole(role: UserRole | null) {
   setDemoRole(role);
-  void router.push(
-    role === "WAREHOUSE"
-      ? "/inventory"
-      : role === "CUSTOMER" || role === null
-        ? "/customer"
-        : "/overview",
-  );
-}
-
-async function submitLogin() {
-  loginError.value = "";
-  try {
-    if (loginMode.value === "register") {
-      if (!loginForm.displayName.trim()) {
-        loginError.value = "Vui lòng nhập tên hiển thị.";
-        return;
-      }
-      await signUp({
-        email: loginForm.email.trim(),
-        password: loginForm.password,
-        displayName: loginForm.displayName.trim(),
-      });
-    } else {
-      await signIn(loginForm.email.trim(), loginForm.password);
-    }
-    const requestedRedirect =
-      typeof route.query.redirect === "string" ? route.query.redirect : "";
-    const fallback =
-      currentRole.value === "WAREHOUSE"
-        ? "/inventory"
-        : currentRole.value === "CUSTOMER"
-          ? "/customer"
-          : "/overview";
-    const redirect =
-      requestedRedirect.startsWith("/") && !requestedRedirect.startsWith("//")
-        ? requestedRedirect
-        : fallback;
-    await router.replace(redirect);
-  } catch (error) {
-    loginError.value =
-      error instanceof Error ? error.message : "Không thể đăng nhập.";
-  }
+  void router.push(landingPage(role));
 }
 
 async function logout() {
-  await signOut();
+  try {
+    await signOut();
+    await router.replace("/login");
+  } catch (error) {
+    notify(error instanceof Error ? error.message : "Không đăng xuất được.");
+  }
+}
+
+async function passwordChanged() {
+  window.dispatchEvent(new Event("shopflow:session-expired"));
   await router.replace("/login");
+  notify("Đã đổi mật khẩu. Vui lòng đăng nhập lại.");
 }
 
 function addToCart(product: Product) {
-  const inCart = cart.value[product.id] || 0;
-  if (inCart >= product.stock) {
+  if (!addCartItem(product)) {
     notify("Số lượng trong giỏ đã đạt tồn kho hiện có");
     return;
   }
-  cart.value[product.id] = inCart + 1;
   notify(`Đã thêm ${product.name} vào giỏ`);
-}
-
-function adjustCart(productId: number, delta: number) {
-  const quantity = (cart.value[productId] || 0) + delta;
-  if (quantity <= 0) delete cart.value[productId];
-  else cart.value[productId] = quantity;
 }
 
 function setPageSize(size: number) {
   void updatePagination(1, size);
 }
 
+async function updateStockThreshold(productId: number, threshold: number) {
+  if (!Number.isSafeInteger(threshold) || threshold < 0) {
+    notify("Ngưỡng tồn kho phải là số nguyên không âm.");
+    return;
+  }
+  apiStockSaving.value = true;
+  try {
+    await shopflowApi.updateThreshold(productId, threshold);
+    products.value = products.value.map((item) => item.categoryId === productId ? { ...item, threshold } : item);
+    notify("Đã cập nhật ngưỡng cảnh báo tồn kho.");
+  } catch (error) {
+    notify(error instanceof Error ? error.message : "Không cập nhật được ngưỡng tồn kho.");
+  } finally { apiStockSaving.value = false; }
+}
+
 function notify(message: string) {
   toast.value = message;
-  window.setTimeout(() => {
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
     toast.value = "";
   }, 2800);
 }
 
 function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
+  if (kind === "checkout" && dataSource === "api" && !currentUser.value) {
+    notify("Đăng nhập để đặt hàng và lưu lịch sử mua hàng.");
+    void router.push({ path: "/login", query: { redirect: "/customer" } });
+    return;
+  }
   modalKind.value = kind;
-  selectedProductId.value = productId ?? products.value[0]?.id ?? null;
+  selectedProductId.value =
+    productId ??
+    (kind === "stock" && dataSource === "api"
+      ? apiInventory.value[0]?.variantId
+      : products.value[0]?.id) ??
+    null;
   formError.value = "";
   Object.assign(form, {
     name: "",
     sku: "",
     category: "Đồ dùng",
+    categoryId: apiCategories.value[0]?.id ?? 0,
     price: 0,
     quantity: 1,
-    customer: "",
+    customer: kind === "checkout" ? currentUser.value?.displayName || "" : "",
     supplier: "",
     orderId: orders.value[0]?.id ?? "",
     reason: "",
     phone: "",
-    email: "",
+    email: kind === "checkout" ? currentUser.value?.username || "" : "",
     addressLine: "",
     district: "",
     city: "",
   });
   mobileMenuOpen.value = false;
+  if (kind === "checkout" && dataSource === "api" && currentUser.value) {
+    const accountId = currentUser.value.userId;
+    void shopflowApi.getProfile().then(profile => {
+      if (modalKind.value === "checkout" && currentUser.value?.userId === accountId && !form.phone) form.phone = profile.phone || "";
+    }).catch(() => { /* Checkout can still use manually entered contact details. */ });
+  }
+}
+
+async function openProductModal() {
+  openModal("product");
+  if (dataSource !== "api" || apiCategories.value.length) {
+    form.categoryId = apiCategories.value[0]?.id ?? 0;
+    return;
+  }
+  try {
+    const result = await shopflowApi.getCategories({ page: 0, size: 100 });
+    apiCategories.value = result.items;
+    form.categoryId = result.items[0]?.id ?? 0;
+    if (!result.items.length)
+      formError.value = "Hãy tạo danh mục trước khi thêm sản phẩm.";
+  } catch (error) {
+    formError.value =
+      error instanceof Error ? error.message : "Không tải được danh mục.";
+  }
 }
 
 function closeModal() {
@@ -654,8 +742,7 @@ async function submitModal() {
       return;
     }
     if (dataSource === "api") {
-      formError.value =
-        "Backend hiện chưa có API giỏ hàng/đặt hàng; đơn chưa được gửi.";
+      await createApiOrder(true);
       return;
     }
     const totalQuantity = cartItems.value.reduce(
@@ -677,12 +764,25 @@ async function submitModal() {
       product: productNames,
       quantity: totalQuantity,
     });
-    cart.value = {};
+    clearCart();
     closeModal();
     notify("Đã tạo đơn hàng demo");
     return;
   }
   if (modalKind.value === "order") {
+    if (dataSource === "api") {
+      if (
+        !form.customer.trim() ||
+        !form.phone.trim() ||
+        !form.addressLine.trim() ||
+        !form.city.trim()
+      ) {
+        formError.value = "Nhập tên, số điện thoại và địa chỉ giao hàng.";
+        return;
+      }
+      await createApiOrder(false);
+      return;
+    }
     const product = products.value.find(
       (item) => item.id === selectedProductId.value,
     );
@@ -714,6 +814,41 @@ async function submitModal() {
       formError.value = "Vui lòng điền tên, mã SKU và giá bán hợp lệ.";
       return;
     }
+    if (dataSource === "api") {
+      const categoryId = Number(form.categoryId);
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        formError.value = "Chọn danh mục hợp lệ cho sản phẩm.";
+        return;
+      }
+      apiProductSaving.value = true;
+      try {
+        await shopflowApi.createProduct({
+          categoryId,
+          name: form.name.trim(),
+          sku: form.sku.trim(),
+          listPrice: form.price,
+        });
+        search.value = "";
+        categoryFilter.value = "all";
+        sortFilter.value = "newest";
+        await updatePagination(1);
+        const catalog = await shopflowApi.getProducts({
+          page: 0,
+          size: pageSize.value,
+          sort: "newest",
+        });
+        apiProductPage.value = catalog;
+        products.value = catalog.items.map(toCatalogProduct);
+        closeModal();
+        notify("Đã thêm sản phẩm vào danh mục");
+      } catch (error) {
+        formError.value =
+          error instanceof Error ? error.message : "Không thể thêm sản phẩm.";
+      } finally {
+        apiProductSaving.value = false;
+      }
+      return;
+    }
     if (
       products.value.some(
         (item) => item.sku.toLowerCase() === form.sku.trim().toLowerCase(),
@@ -739,6 +874,46 @@ async function submitModal() {
     return;
   }
   if (modalKind.value === "return") {
+    if (dataSource === "api") {
+      const orderId = Number(form.orderId);
+      const order = apiReturnableOrders.value.find(
+        (item) => item.orderId === orderId,
+      );
+      const items =
+        order?.items.filter((item) => item.returnableQuantity > 0) ?? [];
+      if (!order || !items.length || !form.reason.trim()) {
+        formError.value =
+          "Chọn đơn hàng đủ điều kiện và nhập lý do đổi trả.";
+        return;
+      }
+      apiReturnSaving.value = true;
+      try {
+        await shopflowApi.createReturn({
+          orderId: order.orderId,
+          reason: form.reason.trim(),
+          items: items.map(({ orderItemId, returnableQuantity }) => ({
+            orderItemId,
+            quantity: returnableQuantity,
+          })),
+        });
+        const [apiReturns, returnableOrders] = await Promise.all([
+          shopflowApi.getReturns(),
+          shopflowApi.getReturnableOrders(),
+        ]);
+        returns.value = apiReturns.map(toReturnView);
+        apiReturnableOrders.value = returnableOrders;
+        closeModal();
+        notify("Đã gửi yêu cầu đổi trả lên máy chủ");
+      } catch (error) {
+        formError.value =
+          error instanceof Error
+            ? error.message
+            : "Không gửi được yêu cầu đổi trả.";
+      } finally {
+        apiReturnSaving.value = false;
+      }
+      return;
+    }
     const order = orders.value.find((item) => item.id === form.orderId);
     if (!order || !form.reason.trim()) {
       formError.value = "Chọn đơn hàng và nhập lý do đổi trả.";
@@ -755,6 +930,40 @@ async function submitModal() {
     notify("Đã gửi yêu cầu đổi trả");
     return;
   }
+  if (dataSource === "api") {
+    const product = apiInventory.value.find(
+      (item) => item.variantId === selectedProductId.value,
+    );
+    if (!product || !Number.isInteger(form.quantity) || form.quantity < 1) {
+      formError.value = "Chọn biến thể sản phẩm và số lượng nhập hợp lệ.";
+      return;
+    }
+    apiStockSaving.value = true;
+    try {
+      await shopflowApi.receiveStock({
+        variantId: product.variantId,
+        quantity: form.quantity,
+        supplierName: form.supplier.trim() || undefined,
+      });
+      const inventory = await shopflowApi.getInventory();
+      apiInventory.value = inventory;
+      if (page.value === "receiving") {
+        products.value = (await shopflowApi.listReceivings()).map(
+          toReceivingProduct,
+        );
+      } else {
+        products.value = inventory.map(toInventoryProduct);
+      }
+      closeModal();
+      notify(`Đã ghi nhận nhập ${form.quantity} sản phẩm`);
+    } catch (error) {
+      formError.value =
+        error instanceof Error ? error.message : "Không ghi nhận được phiếu nhập.";
+    } finally {
+      apiStockSaving.value = false;
+    }
+    return;
+  }
   const product = products.value.find(
     (item) => item.id === selectedProductId.value,
   );
@@ -769,7 +978,131 @@ async function submitModal() {
   );
 }
 
-function advanceOrder(order: Order) {
+async function createApiOrder(isCheckout: boolean) {
+  const items = isCheckout
+    ? cartItems.value.map(({ product, quantity }) => ({
+        productId: product.id,
+        quantity,
+      }))
+    : (() => {
+        const product = apiOrderProducts.value.find(
+          (item) => item.id === selectedProductId.value,
+        );
+        return product ? [{ productId: product.id, quantity: form.quantity }] : [];
+      })();
+  if (!items.length || items.some((item) => item.quantity < 1)) {
+    formError.value = "Chọn sản phẩm và nhập số lượng hợp lệ.";
+    return;
+  }
+  if (
+    !form.customer.trim() ||
+    !form.phone.trim() ||
+    !form.addressLine.trim() ||
+    !form.city.trim()
+  ) {
+    formError.value = "Nhập tên, số điện thoại và địa chỉ giao hàng.";
+    return;
+  }
+
+  apiOrderSaving.value = true;
+  let orderRef: string | null = null;
+  try {
+    const created = await shopflowApi.createOrder({
+      customer: {
+        fullName: form.customer.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim(),
+      },
+      shippingAddress: {
+        receiverName: form.customer.trim(),
+        phone: form.phone.trim(),
+        addressLine: form.addressLine.trim(),
+        district: form.district.trim() || null,
+        city: form.city.trim(),
+      },
+      paymentMethod: "CARD",
+      items,
+    });
+    orderRef = created.orderRef;
+    if (isCheckout) clearCart();
+
+    const payment = await shopflowApi.simulatePayment(orderRef, "SUCCESS");
+    if (page.value === "orders" && canPerform("manageOrders", currentRole.value)) {
+      const result = await shopflowApi.getOrders({
+        page: currentPage.value - 1,
+        size: pageSize.value,
+      });
+      apiOrderPage.value = result;
+      orders.value = result.items.map(toOrderView);
+    }
+    if (page.value === "customer") {
+      const catalog = await shopflowApi.getProducts({
+        page: currentPage.value - 1,
+        size: pageSize.value,
+        query: search.value || undefined,
+        categoryId:
+          categoryFilter.value === "all"
+            ? undefined
+            : Number(categoryFilter.value),
+        sort: sortFilter.value,
+      });
+      apiProductPage.value = catalog;
+      products.value = catalog.items.map(toCatalogProduct);
+    }
+    closeModal();
+    notify(
+      payment.status === "SUCCESS"
+        ? `Đã tạo và thanh toán đơn ${orderRef}`
+        : `Đơn ${orderRef} đã được tạo nhưng thanh toán chưa thành công.`,
+    );
+  } catch (error) {
+    if (orderRef) {
+      closeModal();
+      apiWorkspaceError.value =
+        error instanceof Error
+          ? error.message
+          : "Không thể xác nhận trạng thái đơn hàng hoặc thanh toán.";
+      notify(
+        `Đơn ${orderRef} đã được tạo; hãy kiểm tra trạng thái trước khi thử lại.`,
+      );
+    } else {
+      formError.value =
+        error instanceof Error ? error.message : "Không tạo được đơn hàng.";
+    }
+  } finally {
+    apiOrderSaving.value = false;
+  }
+}
+
+async function advanceOrder(order: Order) {
+  if (dataSource === "api") {
+    if (!order.apiId || !order.deliveryStatus || order.payment !== "Đã thanh toán")
+      return;
+    const nextStatus =
+      order.deliveryStatus === "NONE"
+        ? "PREPARING"
+        : order.deliveryStatus === "PREPARING"
+        ? "SHIPPED"
+        : order.deliveryStatus === "SHIPPED"
+          ? "DELIVERED"
+          : null;
+    if (!nextStatus) return;
+    try {
+      const updated = await shopflowApi.updateDelivery(order.apiId, nextStatus);
+      const updatedOrder = toDeliveryOrder(updated);
+      orders.value = orders.value.map((item) =>
+        item.apiId === order.apiId ? updatedOrder : item,
+      );
+      notify(`Đơn ${order.id}: đã cập nhật trạng thái giao hàng`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Không cập nhật được trạng thái giao hàng.",
+      );
+    }
+    return;
+  }
   const next: Record<Order["status"], Order["status"]> = {
     "Chờ xác nhận": "Đang xử lý",
     "Đang xử lý": "Đang giao",
@@ -782,13 +1115,57 @@ function advanceOrder(order: Order) {
   notify(`Đơn ${order.id}: ${order.status.toLowerCase()}`);
 }
 
-function setReturnStatus(
+async function setReturnStatus(
   request: ReturnRequest,
   status: ReturnRequest["status"],
 ) {
   const action = status === "Đã nhập kho" ? "restockReturn" : "approveReturn";
   if (!canPerform(action, currentRole.value)) {
     notify("Vai trò hiện tại không có quyền thực hiện thao tác này");
+    return;
+  }
+  if (dataSource === "api") {
+    if (!request.apiId) {
+      notify("Không tìm thấy mã yêu cầu đổi trả trên máy chủ.");
+      return;
+    }
+    const statusMap: Record<
+      ReturnRequest["status"],
+      "APPROVED" | "REJECTED" | "RESTOCKED"
+    > = {
+      "Chờ xử lý": "APPROVED",
+      "Đã chấp nhận": "APPROVED",
+      "Đã nhập kho": "RESTOCKED",
+      "Đã từ chối": "REJECTED",
+    };
+    const restockable =
+      status === "Đã chấp nhận"
+        ? window.confirm(
+            "Hàng hoàn còn đủ điều kiện nhập lại kho không? Chọn OK nếu có, Hủy nếu không.",
+          )
+        : status === "Đã nhập kho"
+          ? true
+          : undefined;
+    try {
+      await shopflowApi.updateReturn(
+        request.apiId,
+        statusMap[status],
+        restockable,
+      );
+      const [apiReturns, returnableOrders] = await Promise.all([
+        shopflowApi.getReturns(),
+        currentRole.value === "SHOP_OWNER" ? shopflowApi.getReturnableOrders() : Promise.resolve([]),
+      ]);
+      returns.value = apiReturns.map(toReturnView);
+      apiReturnableOrders.value = returnableOrders;
+      notify(`Đã cập nhật yêu cầu ${request.id}`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Không cập nhật được yêu cầu đổi trả.",
+      );
+    }
     return;
   }
   request.status = status;
@@ -852,6 +1229,60 @@ function exportProducts() {
   notify("Đã xuất danh mục sản phẩm");
 }
 
+async function openReturnModal() {
+  openModal("return");
+  if (dataSource !== "api") return;
+  try {
+    apiReturnableOrders.value = await shopflowApi.getReturnableOrders();
+    if (!apiReturnableOrders.value.length) {
+      closeModal();
+      notify("Chưa có đơn đã thanh toán và giao thành công đủ điều kiện đổi trả.");
+      return;
+    }
+    form.orderId = String(apiReturnableOrders.value[0].orderId);
+  } catch (error) {
+    formError.value =
+      error instanceof Error
+        ? error.message
+        : "Không tải được các đơn hàng đủ điều kiện đổi trả.";
+  }
+}
+
+async function openOrderModal() {
+  openModal("order");
+  if (dataSource !== "api") return;
+  try {
+    const catalog = await shopflowApi.getProducts({ page: 0, size: 100 });
+    apiOrderProducts.value = catalog.items.map(toCatalogProduct);
+    if (!apiOrderProducts.value.length) {
+      closeModal();
+      notify("Chưa có sản phẩm để tạo đơn hàng.");
+      return;
+    }
+    selectedProductId.value = apiOrderProducts.value[0].id;
+  } catch (error) {
+    formError.value =
+      error instanceof Error ? error.message : "Không tải được sản phẩm.";
+  }
+}
+
+async function openStockModal() {
+  if (dataSource === "api") {
+    try {
+      apiInventory.value = await shopflowApi.getInventory();
+      if (!apiInventory.value.length) {
+        notify("Chưa có biến thể sản phẩm để nhập kho.");
+        return;
+      }
+    } catch (error) {
+      apiWorkspaceError.value =
+        error instanceof Error ? error.message : "Không tải được tồn kho.";
+      return;
+    }
+  }
+  openModal("stock");
+}
+
 function primaryAction() {
   if (page.value === "delivery") {
     void router.push("/orders");
@@ -862,11 +1293,19 @@ function primaryAction() {
       notify("Chỉ chủ shop được tạo yêu cầu đổi trả");
       return;
     }
-    openModal("return");
+    void openReturnModal();
     return;
   }
-  if (page.value === "products" && dataSource === "api") {
-    notify("Backend hiện chỉ hỗ trợ xem catalog; CRUD sản phẩm chưa có endpoint");
+  if (page.value === "products") {
+    openProductModal();
+    return;
+  }
+  if (page.value === "orders") {
+    void openOrderModal();
+    return;
+  }
+  if (page.value === "inventory" || page.value === "receiving") {
+    void openStockModal();
     return;
   }
   openModal(
@@ -898,101 +1337,19 @@ function statusClass(status: string) {
 </script>
 
 <template>
-  <main v-if="page === 'login'" class="auth-page">
-    <section class="auth-panel">
-      <RouterLink to="/customer" class="store-brand"
-        ><span class="brand-mark"><span></span><span></span><span></span></span
-        ><strong>shopflow</strong></RouterLink
-      ><span class="auth-kicker">WORKSPACE ACCESS</span>
-      <h1>{{ loginMode === "register" ? "Tạo tài khoản" : "Đăng nhập" }}</h1>
-      <p>
-        {{ loginMode === "register" ? "Tạo tài khoản khách hàng để bắt đầu." : "Đăng nhập để tiếp tục quản lý cửa hàng." }}
-      </p>
-      <form
-        v-if="dataSource === 'api'"
-        class="auth-form"
-        @submit.prevent="submitLogin"
-      >
-        <label v-if="loginMode === 'register'" class="form-label"
-          >Tên hiển thị<input
-            v-model="loginForm.displayName"
-            autocomplete="name"
-            required
-            placeholder="Tên của bạn" /></label
-        ><label class="form-label"
-          >Email<input
-            v-model="loginForm.email"
-            autocomplete="email"
-            type="email"
-            required
-            placeholder="ban@email.com" /></label
-        ><label class="form-label"
-          >Mật khẩu<input
-            v-model="loginForm.password"
-            autocomplete="current-password"
-            required
-            type="password"
-            placeholder="Mật khẩu"
-        /></label>
-        <p v-if="loginError" class="form-error">{{ loginError }}</p>
-        <button class="button button-primary auth-submit" type="submit">
-          {{ loginMode === "register" ? "Đăng ký" : "Đăng nhập" }}
-          <ArrowRight :size="16" />
-        </button>
-        <button
-          type="button"
-          class="guest-entry"
-          @click="loginMode = loginMode === 'register' ? 'login' : 'register'"
-        >
-          {{ loginMode === "register" ? "Đã có tài khoản? Đăng nhập" : "Tạo tài khoản mới" }}
-        </button>
-      </form>
-      <div v-else class="demo-role-list">
-        <p>Chọn vai trò demo để kiểm tra quyền truy cập.</p>
-        <button @click="selectDemoRole('SHOP_OWNER')">
-          <span class="role-badge owner-role">SO</span
-          ><span
-            ><strong>Chủ shop</strong><small>Toàn quyền vận hành</small></span
-          ><ArrowRight :size="16" /></button
-        ><button @click="selectDemoRole('WAREHOUSE')">
-          <span class="role-badge warehouse-role">WH</span
-          ><span
-            ><strong>Nhân viên kho</strong
-            ><small>Tồn kho, giao hàng, nhập hàng</small></span
-          ><ArrowRight :size="16" /></button
-        ><button @click="selectDemoRole('CUSTOMER')">
-          <span class="role-badge customer-role">KH</span
-          ><span
-            ><strong>Khách hàng</strong
-            ><small>Xem catalog và đặt hàng</small></span
-          ><ArrowRight :size="16" /></button
-        ><button class="guest-entry" @click="selectDemoRole(null)">
-          Tiếp tục với tư cách khách <ArrowRight :size="15" />
-        </button>
-      </div>
-      <RouterLink to="/customer" class="back-store-link"
-        ><Store :size="15" /> Xem cửa hàng</RouterLink
-      >
-    </section>
-  </main>
+  <LoginPage v-if="page === 'login'" />
+  <AccountPage v-else-if="page === 'profile' || page === 'purchases'" :tab="page" @logout="logout" @password-changed="passwordChanged" />
   <main v-else-if="page === 'forbidden'" class="auth-page">
     <section class="auth-panel forbidden-panel">
       <span class="auth-kicker">403 · KHÔNG ĐỦ QUYỀN</span>
       <h1>Trang này không dành cho vai trò hiện tại</h1>
       <p>
-        Quyền được kiểm tra ở giao diện và cần được xác thực lại bởi backend khi
-        kết nối.
+        Tài khoản hiện tại không có quyền truy cập trang này.
       </p>
       <button
         class="button button-primary"
         @click="
-          router.replace(
-            currentRole === 'WAREHOUSE'
-              ? '/inventory'
-              : currentRole === 'CUSTOMER' || !currentRole
-                ? '/customer'
-                : '/overview',
-          )
+          router.replace(landingPage(currentRole))
         "
       >
         Về trang phù hợp <ArrowRight :size="16" />
@@ -1023,7 +1380,7 @@ function statusClass(status: string) {
       <div class="store-header-actions">
         <RouterLink
           v-if="currentUser && currentRole !== 'CUSTOMER'"
-          :to="currentRole === 'WAREHOUSE' ? '/inventory' : '/overview'"
+          :to="landingPage(currentRole)"
           class="button button-outline workspace-link"
           ><LayoutDashboard :size="16" />Vận hành</RouterLink
         ><RouterLink
@@ -1033,7 +1390,13 @@ function statusClass(status: string) {
           >{{ currentUser ? "Đổi vai trò" : "Đăng nhập" }}</RouterLink
         ><RouterLink v-else-if="!currentUser" to="/login" class="text-link"
           >Đăng nhập</RouterLink
-        ><button
+        >
+        <details v-if="currentUser" class="account-menu">
+          <summary>{{ currentUser.displayName }}</summary>
+          <nav><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Lịch sử mua / Theo dõi đơn</RouterLink></nav>
+        </details>
+        <button v-if="currentUser" class="button button-outline" @click="logout"><LogOut :size="15" />Đăng xuất</button>
+        <button
           class="button button-primary cart-button"
           @click="
             cartItems.length
@@ -1042,41 +1405,46 @@ function statusClass(status: string) {
           "
         >
           <ShoppingCart :size="17" /><span>Giỏ hàng</span
-          ><b>{{ cartItems.reduce((sum, item) => sum + item.quantity, 0) }}</b>
+          ><b :key="cartItems.reduce((sum, item) => sum + item.quantity, 0)" class="cart-bump">{{ cartItems.reduce((sum, item) => sum + item.quantity, 0) }}</b>
         </button>
       </div>
     </header>
     <section class="storefront-hero">
-      <div>
+      <div class="hero-copy">
         <span class="auth-kicker">MỘC STUDIO · ĐỒ DÙNG SỐNG XANH</span>
         <h1>Những món đồ nhỏ,<br />cho ngày thường tốt hơn.</h1>
         <p>Sản phẩm được chọn kỹ cho góc sống có chủ đích.</p>
+        <a class="hero-explore" href="#collection">Khám phá bộ sưu tập <ArrowRight :size="17" /></a>
       </div>
+      <div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-stamp">
         <span>CURATED<br />FOR EVERYDAY</span><Sparkles :size="25" />
       </div>
     </section>
     <div class="storefront-content">
-      <section class="store-catalog">
-        <div class="store-section-heading">
+      <section id="collection" class="store-catalog">
+        <div v-reveal class="store-section-heading">
           <div>
             <span class="auth-kicker">BỘ SƯU TẬP</span>
             <h2>Sản phẩm nổi bật</h2>
           </div>
-          <span>{{ products.length }} sản phẩm</span>
+          <span>{{ productPage.total }} sản phẩm</span>
         </div>
+        <div v-if="apiProductLoading && !filteredProducts.length" class="catalog-skeleton" role="status" aria-label="Đang tải sản phẩm">
+          <div v-for="item in 6" :key="item" class="skeleton-card" aria-hidden="true"><div class="skeleton-image"></div><i></i><i></i><i></i></div>
+          <span class="sr-only">Đang tải sản phẩm…</span>
+        </div>
+        <p v-else-if="apiProductLoading" class="empty-state motion-loading" role="status">Đang tải sản phẩm…</p>
+        <p v-else-if="apiProductError" class="api-error-banner" role="alert">{{ apiProductError }}</p>
         <div class="store-product-grid">
           <article
-            v-for="product in products.filter((item) =>
-              `${item.name} ${item.category}`
-                .toLowerCase()
-                .includes(search.toLowerCase()),
-            )"
+            v-for="(product, index) in filteredProducts"
             :key="product.id"
+            v-reveal="index % 6"
             class="store-product"
           >
             <div class="store-product-image">
-              <img :src="product.image" :alt="product.name" /><span
+              <img :src="product.image" :alt="product.name" loading="lazy" decoding="async" /><span
                 v-if="product.stock <= product.threshold && product.stock > 0"
                 class="stock-ribbon"
                 >Sắp hết</span
@@ -1105,21 +1473,29 @@ function statusClass(status: string) {
             </div>
           </article>
         </div>
-        <p v-if="!products.length" class="empty-state">
+        <p v-if="!apiProductLoading && !apiProductError && !filteredProducts.length" class="empty-state">
           Chưa có sản phẩm đang bán.
         </p>
+        <PaginationBar
+          :page="productPage.page"
+          :page-size="productPage.size"
+          :total="productPage.total"
+          :total-pages="productPage.totalPages"
+          @change-page="updatePagination($event)"
+          @change-size="setPageSize"
+        />
       </section>
-      <aside class="store-cart-panel">
+      <aside v-reveal="2" class="store-cart-panel">
         <div class="store-cart-heading">
           <div>
             <span class="auth-kicker">GIỎ HÀNG</span>
             <h2>Đơn của bạn</h2>
           </div>
-          <span class="cart-count">{{
+          <span :key="cartItems.reduce((sum, item) => sum + item.quantity, 0)" class="cart-count cart-bump">{{
             cartItems.reduce((sum, item) => sum + item.quantity, 0)
           }}</span>
         </div>
-        <div v-if="cartItems.length" class="store-cart-items">
+        <TransitionGroup name="cart-item" tag="div" class="store-cart-items">
           <div
             v-for="item in cartItems"
             :key="item.product.id"
@@ -1146,8 +1522,8 @@ function statusClass(status: string) {
               money(item.product.price * item.quantity)
             }}</strong>
           </div>
-        </div>
-        <div v-else class="cart-empty">
+        </TransitionGroup>
+        <div v-if="!cartItems.length" class="cart-empty">
           <ShoppingBag :size="24" />
           <p>Chưa có sản phẩm nào.<br />Chọn món bạn yêu thích nhé.</p>
         </div>
@@ -1170,11 +1546,14 @@ function statusClass(status: string) {
       <span>© 2026 Mộc Studio · ShopFlow</span
       ><span>Đơn giản hơn, có chủ đích hơn.</span>
     </footer>
+    <Transition name="dialog">
     <ProductDetailDialog
       v-if="productDetailId !== null && productDetail"
       :product="productDetail"
       @close="productDetailId = null"
     />
+    </Transition>
+    <Transition name="dialog">
     <div
       v-if="modalKind === 'checkout'"
       class="modal-backdrop"
@@ -1207,7 +1586,8 @@ function statusClass(status: string) {
         </div>
       </form>
     </div>
-    <Transition name="toast"><div v-if="toast" class="toast-message"><span><Check :size="16" /></span>{{ toast }}</div></Transition>
+    </Transition>
+    <Transition name="toast"><div v-if="toast" :key="toast" class="toast-message" role="status"><span><Check :size="16" /></span>{{ toast }}</div></Transition>
   </main>
   <div v-else class="app-shell">
     <div
@@ -1290,8 +1670,8 @@ function statusClass(status: string) {
           }}</span
           ><span class="profile-copy"
             ><strong>{{ currentUser?.displayName || "Khách vãng lai" }}</strong
-            ><small>{{ currentRole || "GUEST" }}</small></span
-          ><Settings2 :size="17" />
+            ><small>{{ currentRole ? roleLabels[currentRole] : "Khách" }}</small></span
+          ><RouterLink to="/profile" aria-label="Thông tin cá nhân"><Settings2 :size="17" /></RouterLink>
         </div>
       </div>
     </aside>
@@ -1319,6 +1699,7 @@ function statusClass(status: string) {
               @keydown.enter="submitSearch"
           /></label>
           <button
+            v-if="canAccessPage('inventory', currentRole)"
             class="icon-button notification-button"
             aria-label="Xem cảnh báo tồn kho"
             @click="router.push('/inventory')"
@@ -1341,6 +1722,7 @@ function statusClass(status: string) {
           >
             <option value="SHOP_OWNER">Chủ shop</option>
             <option value="WAREHOUSE">Kho</option>
+            <option value="SALES_STAFF">Bán hàng</option>
             <option value="CUSTOMER">Khách hàng</option>
             <option value="GUEST">Khách vãng lai</option>
           </select>
@@ -1353,13 +1735,13 @@ function statusClass(status: string) {
           >
             <LogOut :size="17" />
           </button>
-          <button class="top-avatar" aria-label="Tài khoản">
+          <button class="top-avatar" aria-label="Tài khoản" @click="router.push('/profile')">
             {{ currentUser?.displayName.slice(0, 1) || "G" }}
           </button>
         </div>
       </header>
 
-      <main class="page-wrap">
+      <main :key="page" class="page-wrap">
         <div class="page-heading">
           <div>
             <div class="eyebrow">
@@ -1367,7 +1749,10 @@ function statusClass(status: string) {
             </div>
             <h1>{{ title }}</h1>
             <p v-if="page === 'overview'">
-              Chào buổi sáng, Anh Tài. Đây là những gì đang diễn ra hôm nay.
+              Chào {{ currentUser?.displayName || "bạn" }}. Đây là tình hình cửa hàng hôm nay.
+            </p>
+            <p v-else-if="page === 'staff'">
+              Tạo và cấp quyền truy cập cho nhân viên cửa hàng.
             </p>
             <p v-else>
               {{
@@ -1388,6 +1773,7 @@ function statusClass(status: string) {
           <div class="heading-actions">
             <span class="date-chip"><CalendarDays :size="16" />{{ today }}</span>
             <button
+              v-if="page !== 'staff' && (page !== 'delivery' || canPerform('manageOrders', currentRole))"
               class="button button-primary"
               :disabled="page === 'returns' && !canPerform('approveReturn', currentRole)"
               @click="primaryAction"
@@ -1410,15 +1796,17 @@ function statusClass(status: string) {
         <div v-if="apiWorkspaceLoading" class="api-loading" role="status">Đang tải dữ liệu từ backend…</div>
         <div v-else-if="apiWorkspaceError" class="api-error-banner" role="alert">{{ apiWorkspaceError }}</div>
 
-        <template v-if="page === 'overview'">
+        <StaffPage v-if="page === 'staff'" />
+
+        <template v-else-if="page === 'overview'">
           <section class="stats-grid">
-            <article class="stat-card">
+            <article v-reveal="0" class="stat-card">
               <div class="stat-top">
                 <span>Doanh thu ghi nhận</span
                 ><span class="stat-icon mint"><Activity :size="18" /></span>
               </div>
-              <strong>{{ money(salesTotal) }}</strong>
-              <div class="stat-foot">
+              <strong><AnimatedNumber :value="salesTotal" :format="money" /></strong>
+              <div v-if="dataSource === 'demo'" class="stat-foot">
                 <span class="trend-up"><ArrowUpRight :size="14" />12,8%</span
                 ><span>so với tháng trước</span
                 ><svg
@@ -1432,13 +1820,13 @@ function statusClass(status: string) {
                 </svg>
               </div>
             </article>
-            <article class="stat-card">
+            <article v-reveal="1" class="stat-card">
               <div class="stat-top">
                 <span>Đơn hàng mới</span
                 ><span class="stat-icon peach"><ShoppingBag :size="18" /></span>
               </div>
-              <strong>{{ orders.length }} <small>đơn</small></strong>
-              <div class="stat-foot">
+              <strong><AnimatedNumber :value="dashboardOrderCount" /> <small>đơn</small></strong>
+              <div v-if="dataSource === 'demo'" class="stat-foot">
                 <span class="trend-up"><ArrowUpRight :size="14" />8,2%</span
                 ><span>so với tháng trước</span
                 ><svg
@@ -1452,19 +1840,15 @@ function statusClass(status: string) {
                 </svg>
               </div>
             </article>
-            <article class="stat-card">
+            <article v-reveal="2" class="stat-card">
               <div class="stat-top">
                 <span>Giá trị đơn trung bình</span
                 ><span class="stat-icon lavender"
                   ><ClipboardList :size="18"
                 /></span>
               </div>
-              <strong>{{
-                money(
-                  orders.length ? Math.round(salesTotal / orders.length) : 0,
-                )
-              }}</strong>
-              <div class="stat-foot">
+              <strong><AnimatedNumber :value="averagePaidOrder" :format="money" /></strong>
+              <div v-if="dataSource === 'demo'" class="stat-foot">
                 <span class="trend-down"><ArrowDownRight :size="14" />2,4%</span
                 ><span>so với tháng trước</span
                 ><svg
@@ -1478,13 +1862,13 @@ function statusClass(status: string) {
                 </svg>
               </div>
             </article>
-            <article class="stat-card">
+            <article v-reveal="3" class="stat-card">
               <div class="stat-top">
                 <span>Sản phẩm cần nhập</span
                 ><span class="stat-icon yellow"><Boxes :size="18" /></span>
               </div>
               <strong
-                >{{ lowStockProducts.length }} <small>mặt hàng</small></strong
+                ><AnimatedNumber :value="apiDashboard?.lowStockCount ?? lowStockProducts.length" /> <small>mặt hàng</small></strong
               >
               <div class="stat-foot">
                 <span class="foot-alert">Cần chú ý</span
@@ -1503,7 +1887,7 @@ function statusClass(status: string) {
           </section>
 
           <section class="overview-grid">
-            <article class="panel revenue-panel">
+            <article v-reveal class="panel revenue-panel">
               <div class="panel-heading">
                 <div>
                   <h2>Doanh thu</h2>
@@ -1518,10 +1902,10 @@ function statusClass(status: string) {
               </div>
               <div class="chart-summary">
                 <strong>{{ money(salesTotal) }}</strong
-                ><span class="trend-up"><ArrowUpRight :size="14" />12,8%</span
-                ><small>so với kỳ trước</small>
+                ><span v-if="dataSource === 'demo'" class="trend-up"><ArrowUpRight :size="14" />12,8%</span
+                ><small>{{ dataSource === 'api' ? 'Doanh thu đã thanh toán · 7 ngày gần nhất' : 'so với kỳ trước' }}</small>
               </div>
-              <div class="chart-area">
+              <div v-if="dataSource === 'demo'" class="chart-area">
                 <div class="chart-y-axis">
                   <span>2tr</span><span>1,5tr</span><span>1tr</span
                   ><span>500k</span><span>0</span>
@@ -1585,8 +1969,16 @@ function statusClass(status: string) {
                   </div>
                 </div>
               </div>
+              <div v-else class="live-revenue-chart">
+                <div class="muted-cell">{{ money(revenueChart.max) }}</div>
+                <svg viewBox="0 0 700 200" role="img" aria-label="Doanh thu thực tế theo ngày">
+                  <line x1="0" y1="180" x2="700" y2="180" stroke="#d9e0d8" />
+                  <polyline :points="revenueChart.points" fill="none" stroke="#1d6957" stroke-width="3" />
+                </svg>
+                <div class="chart-x-axis"><span v-for="label in revenueChart.labels" :key="label">{{ label }}</span></div>
+              </div>
             </article>
-            <article class="panel channel-panel">
+            <article v-if="dataSource === 'demo'" class="panel channel-panel">
               <div class="panel-heading">
                 <div>
                   <h2>Kênh bán hàng</h2>
@@ -1627,6 +2019,14 @@ function statusClass(status: string) {
                 <Sparkles :size="16" /><span
                   >Website đang là kênh mang lại nhiều đơn hàng nhất.</span
                 >
+              </div>
+            </article>
+            <article v-else class="panel channel-panel">
+              <div class="panel-heading"><div><h2>Tình hình đơn hàng</h2><p>7 ngày gần nhất</p></div></div>
+              <div class="channel-legend live-order-summary">
+                <div><span>Tổng đơn hàng</span><strong>{{ dashboardOrderCount }}</strong></div>
+                <div><span>Đã thanh toán</span><strong>{{ apiDashboard?.paidOrderCount ?? 0 }}</strong></div>
+                <div><span>Giá trị đơn đã thanh toán trung bình</span><strong>{{ money(averagePaidOrder) }}</strong></div>
               </div>
             </article>
           </section>
@@ -1719,417 +2119,73 @@ function statusClass(status: string) {
           </section>
         </template>
 
-        <template
+        <ProductsInventoryPage
           v-else-if="
             page === 'products' || page === 'inventory' || page === 'receiving'
           "
-        >
-          <section class="panel data-panel">
-            <div class="table-toolbar">
-              <div class="toolbar-tabs">
-                <button
-                  :class="{ selected: page === 'products' }"
-                  @click="page !== 'products' && router.push('/products')"
-                >
-                  Tất cả sản phẩm <span>{{ productPage.total }}</span></button
-                ><button
-                  v-if="page !== 'products'"
-                  :class="{ selected: page === 'inventory' }"
-                  @click="router.push('/inventory')"
-                >
-                  Cảnh báo tồn kho
-                  <span class="alert-count">{{ lowStockProducts.length }}</span>
-                </button>
-              </div>
-              <div class="toolbar-actions">
-                <label class="table-search"
-                  ><Search :size="16" /><input
-                    v-model="search"
-                    type="search"
-                    placeholder="Tìm sản phẩm" /></label
-                ><select v-model="categoryFilter" class="filter-select" aria-label="Lọc theo danh mục">
-                  <option value="all">Tất cả danh mục</option>
-                  <option v-for="category in categoryOptions" :key="category.id" :value="String(category.id)">
-                    {{ category.name }}
-                  </option>
-                </select>
-                ><select v-if="dataSource === 'api'" v-model="sortFilter" class="filter-select" aria-label="Sắp xếp sản phẩm">
-                  <option value="newest">Mới nhất</option>
-                  <option value="priceAsc">Giá tăng dần</option>
-                  <option value="priceDesc">Giá giảm dần</option>
-                </select
-                ><button
-                  v-if="dataSource === 'api' && page === 'products'"
-                  class="button button-outline"
-                  @click="openCategoryManager"
-                >Quản lý danh mục</button
-                ><button
-                  v-if="dataSource === 'api' && page === 'products'"
-                  class="button button-outline"
-                  @click="openCategoryManager"
-                >
-                  Quản lý danh mục
-                </button
-                ><button
-                  class="button button-outline export-button"
-                  @click="exportProducts"
-                >
-                  <Download :size="16" />Xuất file
-                </button>
-              </div>
-            </div>
-            <div v-if="apiProductLoading" class="empty-cell">Đang tải catalog từ backend…</div>
-            <div v-else-if="apiProductError" class="api-error-banner" role="alert">{{ apiProductError }}</div>
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>SẢN PHẨM</th>
-                    <th>MÃ SKU</th>
-                    <th>DANH MỤC</th>
-                    <th>GIÁ BÁN</th>
-                    <th>
-                      {{ page === "products" ? "TỒN KHO" : "SỐ LƯỢNG CÒN" }}
-                    </th>
-                    <th>TRẠNG THÁI</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="product in filteredProducts" :key="product.id">
-                    <td>
-                      <div class="product-cell">
-                        <img
-                          :src="product.image"
-                          :alt="product.name"
-                        /><button
-                          v-if="dataSource === 'api' && page === 'products'"
-                          class="product-detail-link"
-                          @click="openProductDetail(product.id)"
-                        >{{ product.name }}</button><strong v-else>{{ product.name }}</strong>
-                      </div>
-                    </td>
-                    <td class="muted-cell">{{ product.sku }}</td>
-                    <td>
-                      <span class="category-label">{{ product.category }}</span>
-                    </td>
-                    <td class="amount-cell">{{ money(product.price) }}</td>
-                    <td>
-                      <span
-                        class="stock-number"
-                        :class="{
-                          'stock-number--low':
-                            product.stock <= product.threshold,
-                        }"
-                        >{{ product.stock }} <small>sp</small></span
-                      >
-                    </td>
-                    <td>
-                      <span
-                        class="status-badge"
-                        :class="
-                          product.stock <= product.threshold
-                            ? 'status-pending'
-                            : 'status-success'
-                        "
-                        ><i></i
-                        >{{
-                          product.stock <= product.threshold
-                            ? "Sắp hết hàng"
-                            : "Đang bán"
-                        }}</span
-                      >
-                    </td>
-                    <td>
-                      <button
-                        v-if="dataSource === 'demo' && page !== 'products'"
-                        class="button button-small button-outline"
-                        @click="openModal('stock', product.id)"
-                      >
-                        <Plus :size="14" />Nhập kho</button
-                      ><button
-                        v-else-if="dataSource === 'demo'"
-                        class="row-menu"
-                        :aria-label="`Nhập hàng cho ${product.name}`"
-                        @click="openModal('stock', product.id)"
-                      >
-                        <PackagePlus :size="17" />
-                      </button><span v-else class="muted-cell">Chỉ đọc</span>
-                    </td>
-                  </tr>
-                  <tr v-if="!apiProductLoading && !filteredProducts.length">
-                    <td colspan="7" class="empty-cell">
-                      Không tìm thấy sản phẩm phù hợp.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-footer">
-              <span
-                >Đang hiển thị {{ filteredProducts.length }} trên
-                {{ productPage.total }} sản phẩm</span
-              >
-              <PaginationBar
-                :page="productPage.page"
-                :page-size="productPage.size"
-                :total="productPage.total"
-                :total-pages="productPage.totalPages"
-                @change-page="updatePagination"
-                @change-size="setPageSize"
-              />
-            </div>
-          </section>
-          <div class="page-footnote">
-            <span class="live-dot"></span>Dữ liệu được lưu trên thiết bị này
-            <span>·</span> Đồng bộ gần nhất: vừa xong
-          </div>
-        </template>
+          :page="page"
+          :data-source="dataSource"
+          :products="products"
+          :filtered-products="filteredProducts"
+          :product-page="productPage"
+          :low-stock-count="lowStockProducts.length"
+          :category-options="categoryOptions"
+          :category-filter="categoryFilter"
+          :sort-filter="sortFilter"
+          :search="search"
+          :api-product-loading="apiProductLoading"
+          :api-product-error="apiProductError"
+          :stock-saving="apiStockSaving"
+          :money="money"
+          @update:search="search = $event"
+          @update:category-filter="categoryFilter = $event"
+          @update:sort-filter="sortFilter = $event"
+          @navigate-products="router.push('/products')"
+          @navigate-inventory="router.push('/inventory')"
+          @open-categories="openCategoryManager"
+          @export-products="exportProducts"
+          @open-detail="openProductDetail"
+          @open-stock="openModal('stock', $event)"
+          @update-threshold="updateStockThreshold"
+          @change-page="updatePagination"
+          @change-size="setPageSize"
+        />
 
-        <template v-else-if="page === 'orders' || page === 'delivery'">
-          <section class="panel data-panel">
-            <div class="table-toolbar">
-              <div class="toolbar-tabs">
-                <button
-                  :class="{ selected: page === 'orders' }"
-                  @click="page !== 'orders' && router.push('/orders')"
-                >
-                  Tất cả đơn hàng <span>{{ orders.length }}</span></button
-                ><button
-                  class="tab-button"
-                  @click="notify(`${pendingOrders} đơn hàng đang chờ xác nhận`)"
-                >
-                  Chờ xử lý <span class="alert-count">{{ pendingOrders }}</span>
-                </button>
-              </div>
-              <div class="toolbar-actions">
-                <label class="table-search"
-                  ><Search :size="16" /><input
-                    v-model="search"
-                    type="search"
-                    placeholder="Tìm mã đơn, khách hàng" /></label
-                ><button class="button button-outline" @click="exportOrders">
-                  <Download :size="16" />Xuất file
-                </button>
-              </div>
-            </div>
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>MÃ ĐƠN</th>
-                    <th>KHÁCH HÀNG</th>
-                    <th>SẢN PHẨM</th>
-                    <th>NGÀY ĐẶT</th>
-                    <th>TỔNG TIỀN</th>
-                    <th>THANH TOÁN</th>
-                    <th>TRẠNG THÁI</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="order in filteredOrders" :key="order.id">
-                    <td class="order-id">{{ order.id }}</td>
-                    <td>
-                      <div class="customer-cell">
-                        <span class="customer-avatar">{{
-                          order.customer.slice(0, 1)
-                        }}</span
-                        >{{ order.customer }}
-                      </div>
-                    </td>
-                    <td>
-                      <span class="product-order-name"
-                        >{{ order.product
-                        }}<small>{{ order.quantity }} sản phẩm</small></span
-                      >
-                    </td>
-                    <td class="muted-cell">{{ order.date }}</td>
-                    <td class="amount-cell">{{ money(order.total) }}</td>
-                    <td>
-                      <span
-                        class="payment-label"
-                        :class="{
-                          'payment-label--paid':
-                            order.payment === 'Đã thanh toán',
-                        }"
-                        >{{ order.payment }}</span
-                      >
-                    </td>
-                    <td>
-                      <span
-                        class="status-badge"
-                        :class="`status-${statusClass(order.status)}`"
-                        ><i></i>{{ order.status }}</span
-                      >
-                    </td>
-                    <td>
-                      <button
-                        class="button button-small button-outline"
-                        :disabled="
-                          order.status === 'Hoàn tất' ||
-                          order.status === 'Đã hủy'
-                        "
-                        @click="advanceOrder(order)"
-                      >
-                        {{ page === "delivery" ? "Cập nhật" : "Tiếp tục" }}
-                        <ArrowRight :size="13" />
-                      </button>
-                    </td>
-                  </tr>
-                  <tr v-if="!filteredOrders.length">
-                    <td colspan="8" class="empty-cell">
-                      Không tìm thấy đơn hàng.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-footer">
-              <span>{{ orderPage.total }} đơn hàng</span>
-              <PaginationBar
-                :page="orderPage.page"
-                :page-size="orderPage.size"
-                :total="orderPage.total"
-                :total-pages="orderPage.totalPages"
-                @change-page="updatePagination"
-                @change-size="setPageSize"
-              />
-            </div>
-          </section>
-          <div v-if="page === 'delivery'" class="delivery-hint">
-            <Truck :size="18" /><span
-              >Chọn <strong>Cập nhật</strong> để chuyển đơn sang bước giao hàng
-              tiếp theo.</span
-            >
-          </div>
-        </template>
+        <OrdersDeliveryPage
+          v-else-if="page === 'orders' || page === 'delivery'"
+          :page="page"
+          :orders="orders"
+          :filtered-orders="filteredOrders"
+          :order-page="orderPage"
+          :pending-orders="pendingOrders"
+          :can-manage-orders="canPerform('manageOrders', currentRole)"
+          :search="search"
+          :money="money"
+          :status-class="statusClass"
+          @update:search="search = $event"
+          @notify="notify"
+          @navigate-orders="router.push('/orders')"
+          @export-orders="exportOrders"
+          @advance-order="advanceOrder"
+          @change-page="updatePagination"
+          @change-size="setPageSize"
+        />
 
-        <template v-else>
-          <section class="panel data-panel returns-panel">
-            <div class="table-toolbar">
-              <div class="toolbar-tabs">
-                <button class="selected">
-                  Yêu cầu đổi trả <span>{{ returns.length }}</span></button
-                ><button
-                  class="tab-button"
-                  @click="
-                    notify(
-                      `${returns.filter((item) => item.status === 'Chờ xử lý').length} yêu cầu cần xử lý`,
-                    )
-                  "
-                >
-                  Chờ xử lý
-                  <span class="alert-count">{{
-                    returns.filter((item) => item.status === "Chờ xử lý").length
-                  }}</span>
-                </button>
-              </div>
-              <label class="table-search"
-                ><Search :size="16" /><input
-                  v-model="search"
-                  type="search"
-                  placeholder="Tìm yêu cầu"
-              /></label>
-            </div>
-            <div class="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>MÃ YÊU CẦU</th>
-                    <th>MÃ ĐƠN</th>
-                    <th>KHÁCH HÀNG</th>
-                    <th>LÝ DO</th>
-                    <th>TRẠNG THÁI</th>
-                    <th>THAO TÁC</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="request in filteredReturns" :key="request.id">
-                    <td class="order-id">{{ request.id }}</td>
-                    <td class="muted-cell">{{ request.order }}</td>
-                    <td>
-                      <div class="customer-cell">
-                        <span class="customer-avatar">{{
-                          request.customer.slice(0, 1)
-                        }}</span
-                        >{{ request.customer }}
-                      </div>
-                    </td>
-                    <td>{{ request.reason }}</td>
-                    <td>
-                      <span
-                        class="status-badge"
-                        :class="`status-${statusClass(request.status)}`"
-                        ><i></i>{{ request.status }}</span
-                      >
-                    </td>
-                    <td>
-                      <div
-                        v-if="request.status === 'Chờ xử lý' && canPerform('approveReturn', currentRole)"
-                        class="return-actions"
-                      >
-                        <button
-                          class="button button-small button-primary"
-                          @click="setReturnStatus(request, 'Đã chấp nhận')"
-                        >
-                          <Check :size="14" />Chấp nhận</button
-                        ><button
-                          class="icon-button small-icon reject-button"
-                          aria-label="Từ chối yêu cầu"
-                          @click="setReturnStatus(request, 'Đã từ chối')"
-                        >
-                          <X :size="16" />
-                        </button>
-                      </div>
-                      <button
-                        v-else-if="request.status === 'Đã chấp nhận' && canPerform('restockReturn', currentRole)"
-                        class="button button-small button-outline"
-                        @click="setReturnStatus(request, 'Đã nhập kho')"
-                      >
-                        <PackageCheck :size="14" />Nhập lại kho
-                      </button>
-                      <span v-else-if="request.status === 'Chờ xử lý'" class="muted-cell">Chờ chủ shop duyệt</span>
-                      <span v-else class="muted-cell">{{ request.status === 'Đã nhập kho' ? 'Đã nhập kho' : 'Đã xử lý' }}</span>
-                    </td>
-                  </tr>
-                  <tr v-if="!filteredReturns.length">
-                    <td colspan="6" class="empty-cell">
-                      Chưa có yêu cầu đổi trả phù hợp.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="table-footer">
-              <span>{{ returnPage.total }} yêu cầu đổi trả</span>
-              <PaginationBar
-                :page="returnPage.page"
-                :page-size="returnPage.size"
-                :total="returnPage.total"
-                :total-pages="returnPage.totalPages"
-                @change-page="updatePagination"
-                @change-size="setPageSize"
-              />
-            </div>
-          </section>
-          <div class="return-policy">
-            <RotateCcw :size="19" />
-            <div>
-              <strong>Quy trình đổi trả</strong>
-              <p>
-                Kiểm tra tình trạng sản phẩm trước khi chấp nhận hoàn hàng. Hàng
-                hoàn kho sẽ cần được cập nhật tồn kho riêng.
-              </p>
-            </div>
-            <button
-              class="text-link"
-              @click="notify('Chính sách đổi trả đang được cập nhật')"
-            >
-              Xem chính sách <ArrowRight :size="15" />
-            </button>
-          </div>
-        </template>
+        <ReturnsPage
+          v-else
+          :returns="returns"
+          :filtered-returns="filteredReturns"
+          :return-page="returnPage"
+          :search="search"
+          :can-approve="canPerform('approveReturn', currentRole)"
+          :can-restock="canPerform('restockReturn', currentRole)"
+          :status-class="statusClass"
+          @update:search="search = $event"
+          @notify="notify"
+          @set-status="setReturnStatus"
+          @change-page="updatePagination"
+          @change-size="setPageSize"
+        />
 
         <footer class="app-footer">
           <span>© 2026 ShopFlow</span
@@ -2141,6 +2197,7 @@ function statusClass(status: string) {
       </main>
     </div>
 
+    <Transition name="dialog">
     <div
       v-if="modalKind"
       class="modal-backdrop"
@@ -2205,10 +2262,21 @@ function statusClass(status: string) {
               v-model="form.customer"
               autofocus
               placeholder="Ví dụ: Nguyễn Minh Anh" /></label
-          ><label class="form-label"
+          ><template v-if="dataSource === 'api'">
+            <div class="form-row">
+              <label class="form-label">Số điện thoại<input v-model="form.phone" autocomplete="tel" placeholder="09xxxxxxxx" /></label>
+              <label class="form-label">Email <span class="optional-label">Tùy chọn</span><input v-model="form.email" autocomplete="email" type="email" placeholder="ban@email.com" /></label>
+            </div>
+            <label class="form-label">Địa chỉ giao hàng<input v-model="form.addressLine" autocomplete="street-address" placeholder="Số nhà, tên đường" /></label>
+            <div class="form-row">
+              <label class="form-label">Quận / huyện <span class="optional-label">Tùy chọn</span><input v-model="form.district" placeholder="Quận, huyện" /></label>
+              <label class="form-label">Tỉnh / thành phố<input v-model="form.city" autocomplete="address-level1" placeholder="Thành phố" /></label>
+            </div>
+          </template>
+          <label class="form-label"
             >Sản phẩm<select v-model.number="selectedProductId">
               <option
-                v-for="product in products"
+                v-for="product in dataSource === 'api' ? apiOrderProducts : products"
                 :key="product.id"
                 :value="product.id"
               >
@@ -2235,7 +2303,21 @@ function statusClass(status: string) {
                 v-model="form.sku"
                 placeholder="VD: MOC-001" /></label
             ><label class="form-label"
-              >Danh mục<select v-model="form.category">
+              >Danh mục<select
+                v-if="dataSource === 'api'"
+                v-model.number="form.categoryId"
+                required
+              >
+                <option :value="0" disabled>Chọn danh mục</option>
+                <option
+                  v-for="category in apiCategories"
+                  :key="category.id"
+                  :value="category.id"
+                >
+                  {{ category.name }}
+                </option>
+              </select>
+              <select v-else v-model="form.category">
                 <option>Đồ dùng</option>
                 <option>Phụ kiện</option>
                 <option>Văn phòng phẩm</option>
@@ -2253,8 +2335,21 @@ function statusClass(status: string) {
         <template v-else-if="modalKind === 'return'"
           ><label class="form-label"
             >Đơn hàng<select v-model="form.orderId">
-              <option v-for="order in orders" :key="order.id" :value="order.id">
+              <option
+                v-if="dataSource !== 'api'"
+                v-for="order in orders"
+                :key="order.id"
+                :value="order.id"
+              >
                 {{ order.id }} · {{ order.customer }}
+              </option>
+              <option
+                v-for="order in dataSource === 'api' ? apiReturnableOrders : []"
+                :key="order.orderId"
+                :value="String(order.orderId)"
+              >
+                SF-{{ order.orderId }} · {{ order.receiverName }} ·
+                {{ order.items.reduce((total, item) => total + item.returnableQuantity, 0) }} sp có thể đổi trả
               </option>
             </select></label
           ><label class="form-label"
@@ -2266,12 +2361,18 @@ function statusClass(status: string) {
         ></template>
         <template v-else
           ><label class="form-label"
-            >Sản phẩm<select v-model.number="selectedProductId">
+            >Sản phẩm
+            <select v-if="dataSource === 'api'" v-model.number="selectedProductId">
               <option
-                v-for="product in products"
-                :key="product.id"
-                :value="product.id"
+                v-for="product in apiInventory"
+                :key="product.variantId"
+                :value="product.variantId"
               >
+                {{ product.productName }} · hiện có {{ product.availableStock }}
+              </option>
+            </select>
+            <select v-else v-model.number="selectedProductId">
+              <option v-for="product in products" :key="product.id" :value="product.id">
                 {{ product.name }} · hiện có {{ product.stock }}
               </option>
             </select></label
@@ -2296,9 +2397,23 @@ function statusClass(status: string) {
             @click="closeModal"
           >
             Hủy</button
-          ><button type="submit" class="button button-primary">
+          ><button
+            type="submit"
+            class="button button-primary"
+            :disabled="
+              apiProductSaving ||
+              apiOrderSaving ||
+              apiReturnSaving ||
+              apiStockSaving
+            "
+          >
             <Check :size="16" />{{
-              modalKind === "order"
+              apiProductSaving ||
+              apiOrderSaving ||
+              apiReturnSaving ||
+              apiStockSaving
+                ? "Đang lưu..."
+                : modalKind === "order"
                 ? "Tạo đơn hàng"
                 : modalKind === "product"
                   ? "Lưu sản phẩm"
@@ -2312,11 +2427,13 @@ function statusClass(status: string) {
         </div>
       </form>
     </div>
+    </Transition>
     <Transition name="toast"
-      ><div v-if="toast" class="toast-message">
+      ><div v-if="toast" :key="toast" class="toast-message" role="status">
         <span><Check :size="16" /></span>{{ toast }}
       </div></Transition
     >
+    <Transition name="dialog">
     <CategoryManager
       v-if="categoryManagerOpen"
       :categories="apiCategories"
@@ -2326,10 +2443,13 @@ function statusClass(status: string) {
       @save="saveCategory"
       @remove="deleteCategory"
     />
+    </Transition>
+    <Transition name="dialog">
     <ProductDetailDialog
       v-if="productDetailId !== null && productDetail"
       :product="productDetail"
       @close="productDetailId = null"
     />
+    </Transition>
   </div>
 </template>

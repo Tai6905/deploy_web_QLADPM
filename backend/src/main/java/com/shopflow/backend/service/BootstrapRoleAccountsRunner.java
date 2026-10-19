@@ -8,9 +8,12 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
+import java.nio.charset.StandardCharsets;
 
 /** Creates optional owner/warehouse accounts from deployment secrets; it never assigns default passwords. */
 @Component
+@Order(1)
 public class BootstrapRoleAccountsRunner implements ApplicationRunner {
     private final UserRepository users;
     private final PasswordEncoder passwords;
@@ -48,6 +51,9 @@ public class BootstrapRoleAccountsRunner implements ApplicationRunner {
 
     private void createPrivilegedUser(String email, String password, String displayName, String role) {
         if (email == null || email.isBlank() || password == null || password.length() < 8) return;
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalArgumentException("Bootstrap password exceeds 72 UTF-8 bytes");
+        }
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
         if (users.findByEmail(normalizedEmail).isPresent()) return;
         User user = new User();

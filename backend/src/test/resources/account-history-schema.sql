@@ -1,0 +1,23 @@
+-- Isolated H2 fixture schema for HTTP authorization tests; never applied to Aiven.
+CREATE TABLE IF NOT EXISTS orders (
+ id BIGINT PRIMARY KEY, order_ref UUID UNIQUE NOT NULL, customer_id BIGINT,
+ customer_name VARCHAR(255) NOT NULL, customer_email VARCHAR(255), customer_phone VARCHAR(20),
+ receiver_name VARCHAR(255) NOT NULL, receiver_phone VARCHAR(20) NOT NULL, address_line VARCHAR(500) NOT NULL,
+ district VARCHAR(100), city VARCHAR(100) NOT NULL, payment_method VARCHAR(20) NOT NULL DEFAULT 'CARD',
+ status VARCHAR(30) NOT NULL DEFAULT 'PAID', delivery_status VARCHAR(30) NOT NULL DEFAULT 'NONE',
+ total_amount NUMERIC(12,2) NOT NULL DEFAULT 50000,
+ created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS order_items (
+ id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL, product_id BIGINT NOT NULL,
+ variant_id BIGINT NOT NULL, product_name VARCHAR(255) NOT NULL, unit_price NUMERIC(12,2) NOT NULL,
+ quantity INT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS payment_attempts (id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL, status VARCHAR(20));
+CREATE TABLE IF NOT EXISTS delivery_status_history (
+ id BIGSERIAL PRIMARY KEY, order_id BIGINT, from_status VARCHAR(20), to_status VARCHAR(20),
+ changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, changed_by BIGINT
+);
+CREATE TABLE IF NOT EXISTS return_requests (id BIGSERIAL PRIMARY KEY, order_id BIGINT, status VARCHAR(20), created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS return_request_items (id BIGSERIAL PRIMARY KEY, return_id BIGINT, order_item_id BIGINT, quantity INT);

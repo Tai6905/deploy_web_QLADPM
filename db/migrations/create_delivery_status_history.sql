@@ -5,7 +5,7 @@ CREATE TABLE delivery_status_history (
     from_status VARCHAR(20) NOT NULL,
     to_status VARCHAR(20) NOT NULL,
     changed_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    changed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_delivery_history_from CHECK (from_status IN ('NONE', 'PREPARING', 'SHIPPED', 'DELIVERED')),
     CONSTRAINT chk_delivery_history_to CHECK (to_status IN ('PREPARING', 'SHIPPED', 'DELIVERED'))
 );

@@ -1,0 +1,13 @@
+# Copy to accounts.local.properties. The real file is ignored by Git.
+owner.email=owner@example.com
+owner.password=
+owner.display-name=Shop Owner
+sales.email=sales@example.com
+sales.password=
+sales.display-name=Sales Staff
+warehouse.email=warehouse@example.com
+warehouse.password=
+warehouse.display-name=Warehouse Staff
+customer.email=customer@example.com
+customer.password=
+customer.display-name=Customer

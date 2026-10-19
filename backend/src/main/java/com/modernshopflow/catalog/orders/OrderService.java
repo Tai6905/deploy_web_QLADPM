@@ -29,6 +29,11 @@ public class OrderService {
     /** Creates all order rows and stock holds together or rolls the complete operation back. */
     @Transactional
     public OrderResponse create(CreateOrderRequest request) {
+        return create(request, null);
+    }
+
+    @Transactional
+    public OrderResponse create(CreateOrderRequest request, Long customerId) {
         if (!"CARD".equals(request.paymentMethod())) {
             throw new IllegalArgumentException("Only CARD payment is supported");
         }
@@ -65,7 +70,7 @@ public class OrderService {
         }
 
         UUID orderRef = UUID.randomUUID();
-        long orderId = repository.insertOrder(orderRef, request, total);
+        long orderId = repository.insertOrder(orderRef, request, total, customerId);
         OffsetDateTime holdExpiresAt = OffsetDateTime.now().plusMinutes(HOLD_MINUTES);
         for (Allocation allocation : allocations) {
             VariantAvailability variant = allocation.variant();
@@ -81,19 +86,36 @@ public class OrderService {
 
     /** Returns recent orders for the owner workspace using zero-based API pagination. */
     public PageResult<OrderSummary> list(int page, int size) {
+        return list(page, size, null);
+    }
+
+    public PageResult<OrderSummary> list(int page, int size, String search) {
         int offset = pageOffset(page, size);
-        return new PageResult<>(repository.listOrders(size, offset), repository.countOrders());
+        String normalizedSearch = search == null || search.isBlank() ? null : search.trim();
+        return new PageResult<>(repository.listOrders(size, offset, normalizedSearch), repository.countOrders(normalizedSearch));
     }
 
     public OrderResponse getByReference(UUID orderRef) {
         return repository.findOrderByRef(orderRef);
     }
 
+    public PageResult<OrderSummary> listMine(long customerId, int page, int size, String search) {
+        int offset = pageOffset(page, size);
+        String query = search == null || search.isBlank() ? null : search.trim();
+        return new PageResult<>(repository.listOrders(size, offset, query, customerId), repository.countOrders(query, customerId));
+    }
+    public OrderResponse getMine(long id, long customerId) { return repository.findOwnedOrder(id, customerId); }
+    public OrderResponse getMineByReference(UUID reference, long customerId) { return repository.findOwnedOrderByRef(reference, customerId); }
+
     private int pageOffset(int page, int size) {
         if (page < 0 || size < 1 || size > 100) {
             throw new IllegalArgumentException("page must be >= 0 and size must be between 1 and 100");
         }
-        return Math.multiplyExact(page, size);
+        try {
+            return Math.multiplyExact(page, size);
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("page is too large for the requested size", exception);
+        }
     }
 
     private record Allocation(long productId, VariantAvailability variant, int quantity) {}

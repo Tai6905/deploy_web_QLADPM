@@ -1,7 +1,8 @@
 package com.modernshopflow.catalog.dashboard;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
+import com.modernshopflow.catalog.dashboard.DashboardDtos.RevenueDay;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -15,12 +16,18 @@ public class DashboardRepository {
     }
 
     public Metrics summarize(OffsetDateTime from, OffsetDateTime to) {
-        BigDecimal revenue = jdbc.queryForObject(
-                "SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE status = 'PAID' AND created_at >= ? AND created_at < ?",
-                BigDecimal.class, from, to);
-        Long orderCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM orders WHERE created_at >= ? AND created_at < ?",
-                Long.class, from, to);
+        Totals totals = jdbc.queryForObject("""
+                SELECT COALESCE(SUM(CASE WHEN status = 'PAID' THEN total_amount ELSE 0 END), 0) AS revenue,
+                       COUNT(*) AS order_count, COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_order_count
+                FROM orders WHERE created_at >= ? AND created_at < ?
+                """, (rs, row) -> new Totals(rs.getBigDecimal("revenue").longValueExact(),
+                        rs.getLong("order_count"), rs.getLong("paid_order_count")), from, to);
+        List<RevenueDay> dailyRevenue = jdbc.query("""
+                SELECT CAST(created_at AT TIME ZONE 'Asia/Ho_Chi_Minh' AS DATE) AS day,
+                       COALESCE(SUM(total_amount), 0) AS revenue
+                FROM orders WHERE status = 'PAID' AND created_at >= ? AND created_at < ?
+                GROUP BY day ORDER BY day
+                """, (rs, row) -> new RevenueDay(rs.getString("day"), rs.getBigDecimal("revenue").longValueExact()), from, to);
         Long lowStockCount = jdbc.queryForObject(
                 """
                 SELECT COUNT(DISTINCT p.id)
@@ -35,10 +42,10 @@ public class DashboardRepository {
                   ), 0), 0) <= p.low_stock_threshold
                 """,
                 Long.class);
-        return new Metrics(revenue == null ? 0 : revenue.longValueExact(),
-                orderCount == null ? 0 : orderCount,
-                lowStockCount == null ? 0 : lowStockCount);
+        return new Metrics(totals.revenue(), totals.orderCount(),
+                lowStockCount == null ? 0 : lowStockCount, totals.paidOrderCount(), dailyRevenue);
     }
 
-    public record Metrics(long revenue, long orderCount, long lowStockCount) {}
+    private record Totals(long revenue, long orderCount, long paidOrderCount) {}
+    public record Metrics(long revenue, long orderCount, long lowStockCount, long paidOrderCount, List<RevenueDay> dailyRevenue) {}
 }

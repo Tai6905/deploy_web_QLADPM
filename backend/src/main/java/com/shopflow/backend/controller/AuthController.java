@@ -18,6 +18,9 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +32,8 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthService authService;
     private final SecurityContextRepository securityContextRepository;
+    private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
+    private final CookieCsrfTokenRepository csrfTokenRepository;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
@@ -44,26 +49,27 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-            public ResponseEntity<?> login(
-                @Valid @RequestBody LoginRequest request,
+    public ResponseEntity<?> login(
+            @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest,
-            HttpServletResponse httpResponse,
-            HttpSession session) {
+            HttpServletResponse httpResponse) {
         try {
             User user = authService.authenticateUser(request.getEmail(), request.getPassword());
-            session.changeSessionId();
-            session.setAttribute("userId", user.getId());
-            session.setAttribute("userRole", user.getRole());
             var authentication = UsernamePasswordAuthenticationToken.authenticated(
                 user.getEmail(),
                 null,
                 java.util.List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())));
+            httpRequest.getSession(true);
+            sessionAuthenticationStrategy.onAuthentication(authentication, httpRequest, httpResponse);
+            HttpSession authenticatedSession = httpRequest.getSession(true);
+            authenticatedSession.setAttribute("userId", user.getId());
+            authenticatedSession.setAttribute("userRole", user.getRole());
             SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
             securityContext.setAuthentication(authentication);
             SecurityContextHolder.setContext(securityContext);
             securityContextRepository.saveContext(securityContext, httpRequest, httpResponse);
             return ResponseEntity.ok(toResponse(user));
-        } catch (RuntimeException e) {
+        } catch (BadCredentialsException e) {
             return ResponseEntity.status(401).body(new AuthError("Invalid email or password", 401));
         }
     }
@@ -73,20 +79,26 @@ public class AuthController {
         csrfToken.getToken();
         HttpSession session = request.getSession(false);
         if (session == null || !(session.getAttribute("userId") instanceof Number userId)) {
-            return new SessionResponse(false, null);
+            return new SessionResponse(false, null, csrfToken.getToken());
         }
         return authService.findUserById(userId.longValue())
-                .map(user -> new SessionResponse(true, toResponse(user)))
-                .orElseGet(() -> new SessionResponse(false, null));
+                .filter(User::isActive)
+                .map(user -> new SessionResponse(true, toResponse(user), csrfToken.getToken()))
+                .orElseGet(() -> {
+                    session.invalidate();
+                    SecurityContextHolder.clearContext();
+                    return new SessionResponse(false, null, csrfToken.getToken());
+                });
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request) {
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();
         }
         SecurityContextHolder.clearContext();
+        csrfTokenRepository.saveToken(null, request, response);
         return ResponseEntity.noContent().build();
     }
 
@@ -97,7 +109,7 @@ public class AuthController {
 
 record AuthUserResponse(Long userId, String username, String displayName, String role) {}
 
-record SessionResponse(boolean authenticated, AuthUserResponse user) {}
+record SessionResponse(boolean authenticated, AuthUserResponse user, String csrfToken) {}
 
 record AuthError(String message, int status) {}
 

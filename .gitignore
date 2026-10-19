@@ -7,5 +7,15 @@ backend/target/
 .vscode/
 .DS_Store
 
+# Local environment settings and preserved workspace-specific credentials
+.env.local
+.env.local.*
+
 # Local PostgreSQL data when compose is configured with a bind mount
 *.dump
+
+# Backend connection secrets and generated frontend output
+backend/application-local.properties
+backend/accounts.local.properties
+node_modules/
+dist/

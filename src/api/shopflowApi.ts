@@ -1,6 +1,14 @@
 import { apiRequest } from "./httpClient";
 
-export type UserRole = "CUSTOMER" | "WAREHOUSE" | "SHOP_OWNER";
+export type UserRole = "CUSTOMER" | "WAREHOUSE" | "SALES_STAFF" | "SHOP_OWNER";
+export const roleLabels: Record<UserRole, string> = {
+  SHOP_OWNER: "Chủ shop", SALES_STAFF: "Nhân viên bán hàng", WAREHOUSE: "Nhân viên kho", CUSTOMER: "Khách hàng",
+};
+export type AccountProfile = {
+  userId: number; email: string; displayName: string; phone: string | null;
+  role: UserRole; active: boolean; createdAt: string | null;
+};
+export type MyOrderDetail = { order: OrderResponse; delivery: DeliveryOrder; returnableItems: ReturnableOrder["items"]; returns: ApiReturnRequest[] };
 export type PageQuery = {
   page: number;
   size: number;
@@ -27,6 +35,21 @@ export type SessionUser = {
 export type SessionResponse = {
   authenticated: boolean;
   user: SessionUser | null;
+  csrfToken: string;
+};
+export type CreateEmployeeRequest = {
+  email: string;
+  password: string;
+  displayName: string;
+  role?: "SALES_STAFF" | "WAREHOUSE";
+};
+export type ProductCreateRequest = {
+  categoryId: number;
+  sku: string;
+  name: string;
+  description?: string | null;
+  costPrice?: number;
+  listPrice: number;
 };
 export type ProductListItem = {
   id: number;
@@ -48,7 +71,7 @@ export type ProductDetail = {
   name: string;
   slug: string;
   description: string | null;
-  costPrice: number;
+  costPrice?: number;
   listPrice: number;
   createdAt: string;
   updatedAt: string;
@@ -141,6 +164,22 @@ export type ApiReturnRequest = {
   updatedAt: string;
   items: Array<{ orderItemId: number; productId: number; variantId: number; productName: string; quantity: number }>;
 };
+export type ReturnableOrder = {
+  orderId: number;
+  receiverName: string;
+  city: string;
+  totalAmount: number;
+  createdAt: string;
+  items: Array<{
+    orderItemId: number;
+    productId: number;
+    variantId: number;
+    productName: string;
+    purchasedQuantity: number;
+    returnedQuantity: number;
+    returnableQuantity: number;
+  }>;
+};
 export type DashboardSummary = {
   range: "7d" | "30d" | "90d";
   revenue: number;
@@ -148,6 +187,8 @@ export type DashboardSummary = {
   lowStockCount: number;
   from: string;
   to: string;
+  paidOrderCount: number;
+  dailyRevenue: Array<{ date: string; revenue: number }>;
 };
 export type CreateOrderRequest = {
   customer: { fullName: string; email?: string | null; phone?: string | null };
@@ -174,6 +215,7 @@ export const API_ENDPOINTS = {
   login: "/api/auth/login",
   register: "/api/auth/register",
   logout: "/api/auth/logout",
+  employees: "/api/employees",
   products: "/products",
   product: (id: number) => `/products/${id}`,
   categories: "/categories",
@@ -210,6 +252,14 @@ function queryString(query: PageQuery) {
 }
 
 export interface ShopflowApi {
+  getProfile(): Promise<AccountProfile>;
+  updateProfile(input: { displayName: string; phone: string | null }): Promise<AccountProfile>;
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
+  getEmployees(query: Pick<PageQuery, "page" | "size" | "query">): Promise<ApiPage<AccountProfile>>;
+  updateEmployee(id: number, input: { displayName: string; phone: string | null; role: "SALES_STAFF" | "WAREHOUSE"; active: boolean }): Promise<AccountProfile>;
+  getMyOrders(query: Pick<PageQuery, "page" | "size" | "query">): Promise<ApiPage<OrderSummary>>;
+  getMyOrder(id: number): Promise<MyOrderDetail>;
+  createMyReturn(orderId: number, input: { reason: string; items: Array<{ orderItemId: number; quantity: number }> }): Promise<ApiReturnRequest>;
   getSession(): Promise<SessionResponse>;
   login(credentials: { email: string; password: string }): Promise<SessionUser>;
   register(input: {
@@ -218,14 +268,16 @@ export interface ShopflowApi {
     displayName: string;
   }): Promise<SessionUser>;
   logout(): Promise<void>;
+  createEmployee(input: CreateEmployeeRequest): Promise<SessionUser>;
   getProducts(query: PageQuery): Promise<ApiPage<ProductListItem>>;
+  createProduct(input: ProductCreateRequest): Promise<ProductDetail>;
   getProduct(id: number): Promise<ProductDetail>;
   getCategories(query: Pick<PageQuery, "page" | "size">): Promise<ApiPage<Category>>;
   createCategory(input: CategoryInput): Promise<Category>;
   updateCategory(id: number, input: CategoryInput): Promise<Category>;
   deleteCategory(id: number): Promise<void>;
   getDashboard(range: DashboardSummary["range"]): Promise<DashboardSummary>;
-  getOrders(query: Pick<PageQuery, "page" | "size">): Promise<ApiPage<OrderSummary>>;
+  getOrders(query: Pick<PageQuery, "page" | "size" | "query">): Promise<ApiPage<OrderSummary>>;
   createOrder(input: CreateOrderRequest): Promise<OrderResponse>;
   simulatePayment(orderRef: string, result: "SUCCESS" | "FAILED" | "EXPIRED", failureReason?: string): Promise<PaymentResponse>;
   getInventory(): Promise<InventoryItem[]>;
@@ -236,12 +288,20 @@ export interface ShopflowApi {
   getDeliveries(): Promise<DeliveryOrder[]>;
   updateDelivery(orderId: number, toStatus: DeliveryOrder["deliveryStatus"]): Promise<DeliveryOrder>;
   getReturns(limit?: number): Promise<ApiReturnRequest[]>;
-  getReturnableOrders(): Promise<unknown[]>;
+  getReturnableOrders(): Promise<ReturnableOrder[]>;
   createReturn(input: { orderId: number; reason?: string | null; items: Array<{ orderItemId: number; quantity: number }> }): Promise<ApiReturnRequest>;
   updateReturn(id: number, toStatus: ApiReturnRequest["status"], restockable?: boolean): Promise<ApiReturnRequest>;
 }
 
 export const shopflowApi: ShopflowApi = {
+  getProfile: () => apiRequest<AccountProfile>("/api/account"),
+  updateProfile: (input) => apiRequest<AccountProfile>("/api/account", { method: "PUT", body: JSON.stringify(input) }),
+  changePassword: (input) => apiRequest<void>("/api/account/password", { method: "PUT", body: JSON.stringify(input) }),
+  getEmployees: (query) => apiRequest<ApiPage<AccountProfile>>(`/api/employees?${queryString(query)}`),
+  updateEmployee: (id, input) => apiRequest<AccountProfile>(`/api/employees/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  getMyOrders: (query) => apiRequest<ApiPage<OrderSummary>>(`/api/account/orders?${queryString(query)}`),
+  getMyOrder: (id) => apiRequest<MyOrderDetail>(`/api/account/orders/${id}`),
+  createMyReturn: (id, input) => apiRequest<ApiReturnRequest>(`/api/account/orders/${id}/returns`, { method: "POST", body: JSON.stringify(input) }),
   getSession: () => apiRequest<SessionResponse>(API_ENDPOINTS.session),
   login: (credentials) =>
     apiRequest<SessionUser>(API_ENDPOINTS.login, {
@@ -254,10 +314,20 @@ export const shopflowApi: ShopflowApi = {
       body: JSON.stringify(input),
     }),
   logout: () => apiRequest<void>(API_ENDPOINTS.logout, { method: "POST" }),
+  createEmployee: (input) =>
+    apiRequest<SessionUser>(API_ENDPOINTS.employees, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   getProducts: (query) =>
     apiRequest<ApiPage<ProductListItem>>(
       `${API_ENDPOINTS.products}?${queryString(query)}`,
     ),
+  createProduct: (input) =>
+    apiRequest<ProductDetail>(API_ENDPOINTS.products, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   getProduct: (id) =>
     apiRequest<ProductDetail>(API_ENDPOINTS.product(id)),
   getCategories: (query) =>
@@ -296,7 +366,7 @@ export const shopflowApi: ShopflowApi = {
     method: "PATCH", body: JSON.stringify({ toStatus }),
   }),
   getReturns: (limit = 50) => apiRequest<ApiReturnRequest[]>(`${API_ENDPOINTS.returns}?limit=${limit}`),
-  getReturnableOrders: () => apiRequest<unknown[]>(API_ENDPOINTS.returnableOrders),
+  getReturnableOrders: () => apiRequest<ReturnableOrder[]>(API_ENDPOINTS.returnableOrders),
   createReturn: (input) => apiRequest<ApiReturnRequest>(API_ENDPOINTS.returns, { method: "POST", body: JSON.stringify(input) }),
   updateReturn: (id, toStatus, restockable) => apiRequest<ApiReturnRequest>(API_ENDPOINTS.return(id), {
     method: "PATCH", body: JSON.stringify({ toStatus, ...(restockable === undefined ? {} : { restockable }) }),

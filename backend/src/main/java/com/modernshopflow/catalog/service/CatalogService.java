@@ -2,12 +2,16 @@ package com.modernshopflow.catalog.service;
 
 import com.modernshopflow.catalog.api.CategoryRequest;
 import com.modernshopflow.catalog.api.CategoryResponse;
+import com.modernshopflow.catalog.api.ProductCreateRequest;
 import com.modernshopflow.catalog.api.ProductDetailResponse;
 import com.modernshopflow.catalog.api.ProductListItem;
 import com.modernshopflow.catalog.domain.CatalogConflictException;
 import com.modernshopflow.catalog.domain.CatalogNotFoundException;
 import com.modernshopflow.catalog.domain.PageResult;
 import com.modernshopflow.catalog.repository.CatalogRepository;
+import java.math.BigDecimal;
+import java.text.Normalizer;
+import java.util.Locale;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,6 +97,44 @@ public class CatalogService {
     public ProductDetailResponse getProduct(long id) {
         return repository.findProduct(id)
                 .orElseThrow(() -> new CatalogNotFoundException("Product " + id + " was not found"));
+    }
+
+    @Transactional
+    public ProductDetailResponse createProduct(ProductCreateRequest request) {
+        if (request.listPrice() == null || request.listPrice().signum() <= 0
+                || request.listPrice().stripTrailingZeros().scale() > 0
+                || (request.costPrice() != null && (request.costPrice().signum() < 0
+                    || request.costPrice().stripTrailingZeros().scale() > 0))) {
+            throw new IllegalArgumentException("Prices must be whole VND amounts, with listPrice greater than zero");
+        }
+        CategoryResponse category = getCategory(request.categoryId());
+        String sku = request.sku().trim().toUpperCase(Locale.ROOT);
+        String name = request.name().trim();
+        String slug = slugify(name + " " + sku);
+        if (slug.length() > 255) slug = slugify(name).substring(0, Math.min(150, slugify(name).length())) + "-" + slugify(sku);
+        long productId;
+        try {
+            productId = repository.insertProduct(
+                    category.id(),
+                    sku,
+                    name,
+                    slug,
+                    request.description() == null ? null : request.description().trim(),
+                    request.costPrice() == null ? BigDecimal.ZERO : request.costPrice(),
+                    request.listPrice());
+        } catch (DataIntegrityViolationException exception) {
+            throw new CatalogConflictException("Product SKU or slug already exists");
+        }
+        repository.insertDefaultVariant(productId);
+        return getProduct(productId);
+    }
+
+    private String slugify(String value) {
+        return Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
     }
 
     private int pageOffset(int page, int size) {

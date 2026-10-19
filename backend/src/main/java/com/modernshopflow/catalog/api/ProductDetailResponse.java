@@ -1,5 +1,6 @@
 package com.modernshopflow.catalog.api;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -11,7 +12,7 @@ public record ProductDetailResponse(
         String name,
         String slug,
         String description,
-        long costPrice,
+        @JsonIgnore long costPrice,
         long listPrice,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,

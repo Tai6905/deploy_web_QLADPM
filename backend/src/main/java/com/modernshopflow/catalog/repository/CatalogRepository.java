@@ -35,7 +35,9 @@ public class CatalogRepository {
         List<CategoryResponseWithTotal> rows = jdbc.query(sql, this::mapCategoryWithTotal, size, offset);
         return new PageResult<>(
                 rows.stream().map(CategoryResponseWithTotal::category).toList(),
-                rows.isEmpty() ? 0 : rows.getFirst().totalItems());
+                rows.isEmpty() ? jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM categories WHERE is_deleted = FALSE", Long.class)
+                        : rows.getFirst().totalItems());
     }
 
     public Optional<CategoryResponse> findCategory(long id) {
@@ -58,6 +60,51 @@ public class CatalogRepository {
             return statement;
         }, keyHolder);
         return keyHolder.getKey().longValue();
+    }
+
+    public long insertProduct(
+            long categoryId,
+            String sku,
+            String name,
+            String slug,
+            String description,
+            BigDecimal costPrice,
+            BigDecimal listPrice) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbc.update(connection -> {
+            var statement = connection.prepareStatement(
+                    """
+                    INSERT INTO products(
+                        category_id, sku, name, slug, description, cost_price, list_price
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    new String[] {"id"});
+            statement.setLong(1, categoryId);
+            statement.setString(2, sku);
+            statement.setString(3, name);
+            statement.setString(4, slug);
+            statement.setString(5, description);
+            statement.setBigDecimal(6, costPrice);
+            statement.setBigDecimal(7, listPrice);
+            return statement;
+        }, keyHolder);
+        return keyHolder.getKey().longValue();
+    }
+
+    public long insertDefaultVariant(long productId) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbc.update(connection -> {
+            var statement = connection.prepareStatement(
+                    "INSERT INTO product_variants(product_id) VALUES (?)",
+                    new String[] {"id"});
+            statement.setLong(1, productId);
+            return statement;
+        }, keyHolder);
+        long variantId = keyHolder.getKey().longValue();
+        jdbc.update(
+                "INSERT INTO inventory_items(variant_id, quantity, reserved_quantity) VALUES (?, 0, 0)",
+                variantId);
+        return variantId;
     }
 
     public int updateCategory(long id, String name, String slug, String description) {
@@ -126,7 +173,7 @@ public class CatalogRepository {
                 JOIN categories c ON c.id = p.category_id AND c.is_deleted = FALSE
                 WHERE p.is_deleted = FALSE
                   AND (CAST(? AS BIGINT) IS NULL OR p.category_id = CAST(? AS BIGINT))
-                  AND (CAST(? AS TEXT) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%%', CAST(? AS TEXT), '%%')))
+                  AND (CAST(? AS TEXT) IS NULL OR LOWER(CONCAT(p.name, ' ', p.sku, ' ', c.name)) LIKE LOWER(CONCAT('%%', CAST(? AS TEXT), '%%')))
                   AND (CAST(? AS NUMERIC) IS NULL OR p.list_price >= CAST(? AS NUMERIC))
                   AND (CAST(? AS NUMERIC) IS NULL OR p.list_price <= CAST(? AS NUMERIC))
                 ORDER BY %s
@@ -147,7 +194,19 @@ public class CatalogRepository {
                 offset);
         return new PageResult<>(
                 rows.stream().map(ProductListWithTotal::product).toList(),
-                rows.isEmpty() ? 0 : rows.getFirst().totalItems());
+                rows.isEmpty() ? countProducts(categoryId, search, minPrice, maxPrice) : rows.getFirst().totalItems());
+    }
+
+    private long countProducts(Long categoryId, String search, Long minPrice, Long maxPrice) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM products p
+                JOIN categories c ON c.id = p.category_id AND c.is_deleted = FALSE
+                WHERE p.is_deleted = FALSE
+                  AND (CAST(? AS BIGINT) IS NULL OR p.category_id = CAST(? AS BIGINT))
+                  AND (CAST(? AS TEXT) IS NULL OR LOWER(CONCAT(p.name, ' ', p.sku, ' ', c.name)) LIKE LOWER(CONCAT('%', CAST(? AS TEXT), '%')))
+                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price >= CAST(? AS NUMERIC))
+                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price <= CAST(? AS NUMERIC))
+                """, Long.class, categoryId, categoryId, search, search, minPrice, minPrice, maxPrice, maxPrice);
     }
 
     public Optional<ProductDetailResponse> findProduct(long id) {

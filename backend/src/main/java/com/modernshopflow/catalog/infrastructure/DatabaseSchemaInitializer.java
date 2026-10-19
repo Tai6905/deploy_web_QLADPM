@@ -8,12 +8,16 @@ import java.util.List;
 import javax.sql.DataSource;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
 
 /** Applies the ordered schema scripts whose filenames contain only their purpose. */
 @Component
+@Order(0)
+@ConditionalOnProperty(name = "app.schema.initializer.enabled", havingValue = "true", matchIfMissing = true)
 public class DatabaseSchemaInitializer implements ApplicationRunner {
 
     private static final List<String> SCHEMA_SCRIPTS = List.of(
@@ -57,7 +61,7 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
             statement.execute("""
                     CREATE TABLE IF NOT EXISTS schema_migrations (
                         script_name VARCHAR(255) PRIMARY KEY,
-                        applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
         }
@@ -123,8 +127,11 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
     }
 
     private void recordAppliedScript(Connection connection, String scriptName) throws SQLException {
+        if (isApplied(connection, scriptName)) {
+            return;
+        }
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO schema_migrations(script_name) VALUES (?) ON CONFLICT (script_name) DO NOTHING")) {
+                "INSERT INTO schema_migrations(script_name) VALUES (?)")) {
             statement.setString(1, scriptName);
             statement.executeUpdate();
         }

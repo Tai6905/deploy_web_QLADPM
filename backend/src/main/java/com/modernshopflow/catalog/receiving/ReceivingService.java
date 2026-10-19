@@ -24,10 +24,6 @@ public class ReceivingService {
 
     @Transactional
     public ReceivingResponse receive(ReceivingRequest request) {
-        String productName = inventoryRepository.list().stream()
-                .filter(item -> item.variantId() == request.variantId())
-                .map(item -> item.productName()).findFirst()
-                .orElseThrow(() -> new CatalogNotFoundException("Product variant was not found"));
         LockedInventory inventory;
         try {
             inventory = inventoryRepository.lock(request.variantId());
@@ -46,8 +42,7 @@ public class ReceivingService {
         String note = normalize(request.note());
         long receivingId = receivingRepository.insert(request.variantId(), request.quantity(), supplier, note);
         receivingRepository.insertMovement(request.variantId(), request.quantity(), receivingId, note);
-        return receivingRepository.list(1).stream().filter(item -> item.id() == receivingId).findFirst()
-                .orElseThrow(() -> new IllegalStateException("Receiving record was not created"));
+        return receivingRepository.get(receivingId);
     }
 
     public List<ReceivingResponse> list(int limit) {

@@ -53,7 +53,7 @@ export function toInventoryProduct(item: InventoryItem): Product {
 
 export function toReceivingProduct(receipt: ReceivingResponse): Product {
   return {
-    id: receipt.variantId,
+    id: receipt.id,
     variantId: receipt.variantId,
     categoryId: receipt.productId,
     name: receipt.productName,

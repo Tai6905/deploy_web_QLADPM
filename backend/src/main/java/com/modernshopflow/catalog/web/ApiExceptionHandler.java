@@ -13,14 +13,22 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.dao.EmptyResultDataAccessException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-    @ExceptionHandler(CatalogNotFoundException.class)
+    @ExceptionHandler({CatalogNotFoundException.class, EmptyResultDataAccessException.class})
     public ResponseEntity<ApiError> handleNotFound(
-            CatalogNotFoundException exception, HttpServletRequest request) {
+            Exception exception, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ApiError> handleMalformedRequest(Exception exception, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Invalid request body or parameter", request);
     }
 
     @ExceptionHandler({CatalogConflictException.class, DataIntegrityViolationException.class})

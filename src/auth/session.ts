@@ -6,23 +6,28 @@ import {
 } from "../api/shopflowApi";
 
 export const dataSource =
-  import.meta.env.VITE_DATA_SOURCE === "api" ? "api" : "demo";
+  import.meta.env.VITE_DATA_SOURCE === "demo" ? "demo" : "api";
 const savedRole = localStorage.getItem("shopflow.demo-role");
 const initialRole =
   savedRole === "GUEST" ? null : (savedRole as UserRole | null) || "SHOP_OWNER";
 
 export const currentUser = ref<SessionUser | null>(
-  initialRole ? demoUser(initialRole) : null,
+  dataSource === "demo" && initialRole ? demoUser(initialRole) : null,
 );
 export const sessionResolved = ref(dataSource === "demo");
 export const currentRole = computed(() => currentUser.value?.role ?? null);
 let restorePromise: Promise<void> | null = null;
+
+window.addEventListener("shopflow:session-expired", () => {
+  if (dataSource === "api") currentUser.value = null;
+});
 
 function demoUser(role: UserRole): SessionUser {
   const names: Record<UserRole, string> = {
     CUSTOMER: "Khách hàng",
     WAREHOUSE: "Nhân viên kho",
     SHOP_OWNER: "Chủ cửa hàng",
+    SALES_STAFF: "Nhân viên bán hàng",
   };
   return {
     userId: 1,
@@ -58,7 +63,11 @@ export function setDemoRole(role: UserRole | null) {
 }
 
 export async function signIn(email: string, password: string) {
-  currentUser.value = await shopflowApi.login({ email, password });
+  currentUser.value = await shopflowApi.login({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  await shopflowApi.getSession();
   sessionResolved.value = true;
 }
 

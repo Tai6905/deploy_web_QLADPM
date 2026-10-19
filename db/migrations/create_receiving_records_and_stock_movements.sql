@@ -9,7 +9,7 @@ CREATE TABLE receiving_records (
     supplier_name VARCHAR(255),
     note VARCHAR(500),
     created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_receiving_quantity CHECK (quantity > 0)
 );
 
@@ -22,7 +22,7 @@ CREATE TABLE stock_movements (
     reference_id BIGINT,
     note VARCHAR(500),
     created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_stock_movement_type CHECK (
         movement_type IN ('MANUAL_ADJUSTMENT', 'STOCK_RECEIVED', 'ORDER_RESERVED',
                           'PAYMENT_FAILED_RELEASE', 'DELIVERY_COMPLETED', 'RETURN_RESTOCK')

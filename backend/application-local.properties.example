@@ -1,0 +1,10 @@
+# Copy to application-local.properties (ignored by Git).
+# Alternatively run scripts/start-backend.ps1 to enter the password privately.
+spring.datasource.url=jdbc:postgresql://qldapm-261-hcmut-ltw.e.aivencloud.com:28028/defaultdb?sslmode=require&connectTimeout=10&socketTimeout=30&tcpKeepAlive=true
+spring.datasource.username=avnadmin
+spring.datasource.password=${DB_PASSWORD:}
+
+# Optional: create the first owner account on startup, only if email is absent.
+# app.bootstrap.owner.email=owner@example.com
+# app.bootstrap.owner.password=
+# app.bootstrap.owner.display-name=Shop Owner

@@ -35,7 +35,7 @@ public final class OrderDtos {
             @NotNull @Valid Customer customer,
             @NotNull @Valid ShippingAddress shippingAddress,
             @NotBlank String paymentMethod,
-            @NotEmpty List<@Valid OrderLineRequest> items) {}
+            @NotEmpty List<@NotNull @Valid OrderLineRequest> items) {}
 
     public record OrderLineResponse(
             Long productId,

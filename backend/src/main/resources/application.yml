@@ -2,12 +2,22 @@ server:
   port: ${SERVER_PORT:18081}
 
 spring:
+  config:
+    import: optional:file:./application-local.properties,optional:file:./backend/application-local.properties
   application:
     name: modern-shop-flow-catalog-api
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:55432/shopflow}
-    username: ${DB_USERNAME:shopflow}
-    password: ${DB_PASSWORD:shopflow}
+    url: ${DB_URL:jdbc:postgresql://qldapm-261-hcmut-ltw.e.aivencloud.com:28028/defaultdb?sslmode=require&connectTimeout=10&socketTimeout=30&tcpKeepAlive=true}
+    username: ${DB_USERNAME:avnadmin}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+      minimum-idle: 1
+      connection-timeout: 15000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
   jackson:
     default-property-inclusion: non_null
 
@@ -18,6 +28,8 @@ springdoc:
     path: /docs
 
 app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}
   bootstrap:
     owner:
       email: ${BOOTSTRAP_OWNER_EMAIL:}

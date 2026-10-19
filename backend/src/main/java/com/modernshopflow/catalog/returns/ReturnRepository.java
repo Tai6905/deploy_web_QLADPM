@@ -108,6 +108,11 @@ public class ReturnRepository {
         return ids.stream().map(this::get).toList();
     }
 
+    public List<ReturnResponse> listForOrder(long orderId) {
+        return jdbc.queryForList("SELECT id FROM return_requests WHERE order_id = ? ORDER BY created_at DESC, id DESC", Long.class, orderId)
+                .stream().map(this::get).toList();
+    }
+
     public ReturnResponse get(long id) {
         return jdbc.queryForObject(
                 "SELECT id, order_id, status, reason, restockable, created_at, updated_at FROM return_requests WHERE id = ?",

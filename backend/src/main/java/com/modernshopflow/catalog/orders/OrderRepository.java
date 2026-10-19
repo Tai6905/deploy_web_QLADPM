@@ -60,14 +60,18 @@ public class OrderRepository {
     }
 
     public long insertOrder(UUID orderRef, OrderDtos.CreateOrderRequest request, long total) {
+        return insertOrder(orderRef, request, total, null);
+    }
+
+    public long insertOrder(UUID orderRef, OrderDtos.CreateOrderRequest request, long total, Long customerId) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbc.update(connection -> {
             var statement = connection.prepareStatement(
                     """
                     INSERT INTO orders(order_ref, customer_name, customer_email, customer_phone,
                         receiver_name, receiver_phone, address_line, district, city,
-                        payment_method, status, delivery_status, total_amount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CARD', 'PENDING_PAYMENT', 'NONE', ?)
+                        payment_method, status, delivery_status, total_amount, customer_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CARD', 'PENDING_PAYMENT', 'NONE', ?, ?)
                     """,
                     new String[] {"id"});
             statement.setObject(1, orderRef);
@@ -80,6 +84,7 @@ public class OrderRepository {
             statement.setString(8, blankToNull(request.shippingAddress().district()));
             statement.setString(9, request.shippingAddress().city().trim());
             statement.setBigDecimal(10, BigDecimal.valueOf(total));
+            statement.setObject(11, customerId);
             return statement;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -125,7 +130,26 @@ public class OrderRepository {
         return toResponse(header);
     }
 
-    public List<OrderSummary> listOrders(int size, int offset) {
+    public OrderResponse findOwnedOrder(long id, long customerId) {
+        return toResponse(jdbc.queryForObject(ORDER_SQL + " WHERE o.id = ? AND o.customer_id = ?", ORDER_HEADER, id, customerId));
+    }
+
+    public OrderResponse findOwnedOrderByRef(UUID reference, long customerId) {
+        return toResponse(jdbc.queryForObject(ORDER_SQL + " WHERE o.order_ref = ? AND o.customer_id = ?", ORDER_HEADER, reference, customerId));
+    }
+
+    private static final String SEARCH_FILTER = """
+                WHERE (CAST(? AS TEXT) IS NULL
+                    OR LOWER(CONCAT(o.customer_name, ' ', o.order_ref, ' SF-', o.id)) LIKE LOWER(CONCAT('%', CAST(? AS TEXT), '%'))
+                    OR EXISTS (SELECT 1 FROM order_items searched WHERE searched.order_id = o.id
+                        AND LOWER(searched.product_name) LIKE LOWER(CONCAT('%', CAST(? AS TEXT), '%'))))
+                """;
+
+    public List<OrderSummary> listOrders(int size, int offset, String search) {
+        return listOrders(size, offset, search, null);
+    }
+
+    public List<OrderSummary> listOrders(int size, int offset, String search, Long customerId) {
         return jdbc.query(
                 """
                 SELECT o.id, o.order_ref, o.customer_name, o.total_amount, o.status,
@@ -136,6 +160,8 @@ public class OrderRepository {
                 FROM orders o
                 LEFT JOIN payment_attempts pa ON pa.order_id = o.id
                 LEFT JOIN order_items oi ON oi.order_id = o.id
+                """ + SEARCH_FILTER + """
+                AND (CAST(? AS BIGINT) IS NULL OR o.customer_id = ?)
                 GROUP BY o.id, pa.status
                 ORDER BY o.created_at DESC, o.id DESC
                 LIMIT ? OFFSET ?
@@ -146,11 +172,16 @@ public class OrderRepository {
                         rs.getInt("item_quantity"), wholeVnd(rs, "total_amount"),
                         rs.getString("status"), rs.getString("payment_status"),
                         rs.getString("delivery_status"), rs.getObject("created_at", OffsetDateTime.class)),
-                size, offset);
+                search, search, search, customerId, customerId, size, offset);
     }
 
-    public long countOrders() {
-        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM orders", Long.class);
+    public long countOrders(String search) {
+        return countOrders(search, null);
+    }
+
+    public long countOrders(String search, Long customerId) {
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM orders o " + SEARCH_FILTER
+                + " AND (CAST(? AS BIGINT) IS NULL OR o.customer_id = ?)", Long.class, search, search, search, customerId, customerId);
         return count == null ? 0 : count;
     }
 

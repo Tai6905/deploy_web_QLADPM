@@ -20,6 +20,12 @@ public class User {
     @Column(name = "display_name", nullable = false)
     private String displayName;
 
+    @Column(length = 20)
+    private String phone;
+
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private java.time.OffsetDateTime createdAt;
+
     private String role = "CUSTOMER";
 
     @Column(name = "is_active", nullable = false)

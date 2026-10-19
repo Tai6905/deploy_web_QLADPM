@@ -48,7 +48,7 @@ public class ReturnController {
     @PatchMapping("/{returnId}")
     public ReturnResponse update(
             @PathVariable long returnId,
-            @RequestBody UpdateReturnRequest request,
+            @Valid @RequestBody UpdateReturnRequest request,
             Authentication authentication) {
         Set<String> roles = authentication.getAuthorities().stream()
                 .map(authority -> authority.getAuthority()).collect(Collectors.toSet());

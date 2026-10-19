@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "java",
+  "steps": {
+    "build": {
+      "commands": [
+        "mvn -B -f backend/pom.xml -DskipTests package",
+        "mkdir -p target && cp backend/target/catalog-api-0.1.0-SNAPSHOT.jar target/app.jar"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "java -jar target/app.jar"
+  }
+}

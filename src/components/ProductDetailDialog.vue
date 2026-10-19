@@ -12,15 +12,19 @@ const error = ref("");
 
 watch(
   () => props.product.id,
-  async (id) => {
+  async (id, _previous, onCleanup) => {
+    let active = true;
+    onCleanup(() => { active = false; });
     loading.value = true;
     error.value = "";
+    detail.value = null;
     try {
-      detail.value = await shopflowApi.getProduct(id);
+      const result = await shopflowApi.getProduct(id);
+      if (active) detail.value = result;
     } catch (cause) {
-      error.value = cause instanceof Error ? cause.message : "Không tải được chi tiết sản phẩm.";
+      if (active) error.value = cause instanceof Error ? cause.message : "Không tải được chi tiết sản phẩm.";
     } finally {
-      loading.value = false;
+      if (active) loading.value = false;
     }
   },
   { immediate: true },
