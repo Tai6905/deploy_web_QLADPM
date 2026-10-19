@@ -94,12 +94,33 @@ class AuthHttpIntegrationTest {
         assertEquals(403, request(client, "/api/employees", "POST", "{}", csrf(client)).statusCode());
     }
     @Test void corsAllowsConfiguredOriginAndRejectsUnknownOrigin() throws Exception {
-        for (String origin : new String[]{"http://localhost:5173", "https://untrusted.invalid"}) {
+        for (String origin : new String[]{"http://localhost:5173", "https://deploy-web-qladpm.vercel.app", "https://untrusted.invalid"}) {
             var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/products"))
                     .header("Origin", origin).header("Access-Control-Request-Method", "GET").method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build();
             var response = client().send(request, HttpResponse.BodyHandlers.ofString());
-            assertEquals(origin.contains("localhost") ? 200 : 403, response.statusCode());
+            assertEquals(origin.equals("https://untrusted.invalid") ? 403 : 200, response.statusCode());
             if (response.statusCode() == 200) assertEquals(origin, response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
+        }
+    }
+    @Test void registrationAllowsFrontendOriginAndBlocksAnUntrustedOrigin() throws Exception {
+        String origin = "https://deploy-web-qladpm.vercel.app";
+        var endpoint = URI.create("http://localhost:" + port + "/api/auth/register");
+        var preflight = HttpRequest.newBuilder(endpoint).header("Origin", origin)
+                .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "content-type")
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build();
+        var allowed = client().send(preflight, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, allowed.statusCode(), allowed.body());
+        assertEquals(origin, allowed.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
+        assertEquals("true", allowed.headers().firstValue("Access-Control-Allow-Credentials").orElseThrow());
+        String email = UUID.randomUUID() + "@example.invalid";
+        String body = "{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"displayName\":\"CORS regression\"}";
+        for (String source : new String[]{"https://untrusted.invalid", origin}) {
+            var request = HttpRequest.newBuilder(endpoint).header("Origin", source).header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body)).build();
+            var response = client().send(request, HttpResponse.BodyHandlers.ofString());
+            assertEquals(source.equals(origin) ? 201 : 403, response.statusCode(), response.body());
+            if (!source.equals(origin)) assertTrue(users.findByEmail(email).isEmpty());
+            else assertEquals(origin, response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
         }
     }
     @Test void swaggerAndAnonymousSessionArePublic() throws Exception {

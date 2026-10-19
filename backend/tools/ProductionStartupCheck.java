@@ -55,8 +55,22 @@ class ProductionStartupCheck {
                 throw new IllegalStateException("Production startup check failed; inspect the sanitized log above.");
             }
             System.out.println("PASS: production JAR starts with DB environment variables, reads PORT, and serves the Railway healthcheck.");
+            String frontendOrigin = args.length > 0 ? args[0] : "https://deploy-web-qladpm.vercel.app";
+            for (String origin : new String[]{frontendOrigin, "https://untrusted.invalid"}) {
+                var preflight = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/auth/register"))
+                        .header("Origin", origin).header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "content-type").timeout(Duration.ofSeconds(5))
+                        .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build();
+                var response = client.send(preflight, HttpResponse.BodyHandlers.ofString());
+                int expected = origin.equals(frontendOrigin) ? 200 : 403;
+                if (response.statusCode() != expected || (expected == 200 && !response.headers()
+                        .firstValue("Access-Control-Allow-Origin").orElse("").equals(origin))) {
+                    throw new IllegalStateException("Production CORS check failed for " + origin + ": " + response.statusCode());
+                }
+            }
+            System.out.println("PASS: registration preflight permits the frontend origin and rejects an untrusted origin.");
             System.out.println("No local properties were imported by the server; no migrations or business writes were requested.");
-            System.out.println("Runtime tested: Java " + System.getProperty("java.version") + ". Railway logs are still needed to diagnose its crash.");
+            System.out.println("Runtime tested: Java " + System.getProperty("java.version") + ". This check does not redeploy or verify the running Railway service.");
         } finally {
             child.destroy();
             if (!child.waitFor(10, TimeUnit.SECONDS)) child.destroyForcibly();

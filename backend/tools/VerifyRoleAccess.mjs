@@ -19,6 +19,7 @@ for (const [prefix, role, ordersStatus, inventoryStatus, employeesStatus] of rol
     const response = await fetch(base + (init.headers?.Accept === 'text/html' ? '' : apiPrefix) + path, {
       ...init,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json',
+        ...(init.headers?.Accept === 'text/html' ? {} : { Origin: new URL(base).origin }),
         Cookie: [...cookies].map(([name, value]) => `${name}=${value}`).join('; '), ...init.headers },
       signal: AbortSignal.timeout(20000),
     });

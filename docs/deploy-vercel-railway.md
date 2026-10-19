@@ -82,15 +82,17 @@ Bấm **Deploy**, đợi build hoàn tất. Khi trạng thái **Ready**, mở do
 
 Nếu project đã tạo trước đó: vào **Settings → Environment Variables** để thêm/sửa hai biến trên, sau đó vào **Deployments → chọn deployment mới nhất → menu dấu ba chấm → Redeploy**. Biến `VITE_*` được đưa vào frontend lúc build, nên lưu biến xong cần build/deploy lại.
 
-### 4.4. Khai báo domain frontend ở Railway
+### 4.4. Khai báo domain frontend trong backend
 
-Mở Railway → chọn service backend → **Variables** → **New Variable**, nhập:
+Domain frontend hiện tại đã được đặt trong `backend/src/main/resources/application-production.properties`:
 
-```env
-CORS_ALLOWED_ORIGINS=https://shopflow-doan.vercel.app
+```properties
+app.cors.allowed-origins=https://deploy-web-qladpm.vercel.app
 ```
 
-Thay domain ví dụ bằng domain production thật. Không thêm `/login`, không thêm dấu `/` ở cuối và không dùng `*`. Lưu thay đổi rồi **Deploy/Apply Changes** theo nút Railway đang hiển thị; đợi backend healthy trở lại. Nếu có nhiều domain cần dùng, liệt kê các origin cụ thể, ngăn bằng dấu phẩy.
+Bạn không cần thêm biến CORS trên Railway khi dùng cấu hình này. Nếu đổi domain, sửa dòng trên, lưu, commit và push GitHub, rồi kiểm tra Railway đã deploy đúng commit mới. Không thêm `/login`, không thêm dấu `/` ở cuối và không dùng `*`. Nếu có nhiều domain cần dùng, liệt kê các origin cụ thể, ngăn bằng dấu phẩy.
+
+Lệnh chạy trong cả `railway.json` và `railpack.json` đã bật `--spring.profiles.active=production`. Trong Deployment Logs phải thấy profile `production` được kích hoạt. Domain frontend cũng có trong danh sách mặc định của `application.yml`; khi đổi domain cần cập nhật cả hai file để các cách chạy nhất quán. Nếu service có lệnh chạy tùy chỉnh hoặc cấu hình environment ghi đè (nhất là `APP_CORS_ALLOWED_ORIGINS`/`SPRING_APPLICATION_JSON`), kiểm tra chúng có đang giữ giá trị cũ không.
 
 Khi dùng proxy, request trình duyệt vẫn cùng origin; cấu hình này cũng cho phép các preflight hợp lệ từ domain đã chọn. Nếu sau này mở frontend bằng domain Preview khác, origin đó cũng cần được cho phép.
 
@@ -137,6 +139,7 @@ Nhấn **F12 → Network**, thử lại thao tác lỗi, chọn request màu đ�
 - Backend vẫn crash: Railway → deployment backend → Deployment Logs, lấy phần `ERROR`/`Caused by` và mã thoát nếu có.
 - Login trả 401: kiểm tra tài khoản/mật khẩu hoặc tài khoản bị khóa.
 - Request ghi dữ liệu trả 403: kiểm tra quyền của vai trò và CSRF; không tắt CSRF để chữa lỗi.
+- Response là `Invalid CORS request`: backend từ chối `Origin` của frontend trước khi xử lý đăng ký/đăng nhập. Kiểm tra domain chính xác, commit đang chạy và profile production. OPTIONS từ `https://deploy-web-qladpm.vercel.app` tới `/api/auth/register` phải trả 200 và header `Access-Control-Allow-Origin` đúng domain đó; không mở quyền cho toàn bộ `*.vercel.app` để chữa lỗi.
 
 Có thể chạy kiểm tra tự động qua URL đã deploy từ PowerShell ở thư mục gốc repo (đọc bốn tài khoản trong file local, không in mật khẩu):
 
