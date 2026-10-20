@@ -31,6 +31,6 @@ public class DashboardService {
                 .mapToObj(day -> from.toLocalDate().plusDays(day).toString())
                 .map(date -> new RevenueDay(date, revenueByDate.getOrDefault(date, 0L))).toList();
         return new DashboardSummary(range, metrics.revenue(), metrics.orderCount(), metrics.lowStockCount(), from, to,
-                metrics.paidOrderCount(), dailyRevenue);
+                metrics.paidOrderCount(), dailyRevenue, metrics.purchasingTotal(), metrics.inventoryCostEstimate(), metrics.unpricedReceiptCount());
     }
 }

@@ -28,6 +28,7 @@ const pageRoles: Record<AppPage, UserRole[]> = {
 };
 
 export function canAccessPage(page: string, role: UserRole | null) {
+  if (page === "about" || page === "guide" || /^product\/\d+$/.test(page)) return true;
   if (page === "login" || page === "forbidden") return true;
   return (pageRoles[page as AppPage] ?? []).includes(role as UserRole);
 }

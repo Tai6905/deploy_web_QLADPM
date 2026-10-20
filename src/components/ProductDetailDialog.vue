@@ -51,6 +51,7 @@ watch(
             <h2 id="product-detail-title">{{ detail.name }}</h2>
             <p class="product-detail-price">{{ money(detail.listPrice) }}</p>
             <p class="product-detail-description">{{ detail.description || "Chưa có mô tả sản phẩm." }}</p>
+            <RouterLink class="button button-outline" :to="`/product/${detail.id}`" @click="emit('close')">Mở trang sản phẩm / chỉnh sửa nội dung →</RouterLink>
             <h3>Phiên bản và tồn khả dụng</h3>
             <div v-if="detail.productVariants.length" class="variant-list">
               <div v-for="variant in detail.productVariants" :key="variant.id" class="variant-row">

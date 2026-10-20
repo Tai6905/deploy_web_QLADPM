@@ -132,88 +132,73 @@ public class CatalogRepository {
         return count == null ? 0 : count;
     }
 
-    public PageResult<ProductListItem> findProducts(
-            int size,
-            int offset,
-            Long categoryId,
-            String search,
-            Long minPrice,
-            Long maxPrice,
-            String sort) {
-        // Optional filters remain JDBC parameters so user input never becomes SQL text.
-        String sql = """
-                                SELECT p.id, p.category_id, c.name AS category_name, p.sku, p.name,
-                                           p.slug, p.description, p.list_price,
-                                           COALESCE((
-                                                   SELECT SUM(GREATEST(
-                                                           COALESCE(ii.quantity, 0)
-                                                           - COALESCE(ii.reserved_quantity, 0)
-                                                           - COALESCE((
-                                                                   SELECT SUM(sh.quantity)
-                                                                   FROM stock_holds sh
-                                                                   WHERE sh.inventory_item_id = ii.id
-                                                                         AND sh.status = 'HOLDING'
-                                                                         AND sh.expires_at > CURRENT_TIMESTAMP
-                                                           ), 0),
-                                                           0
-                                                   ))
-                                                   FROM product_variants pv
-                                                   LEFT JOIN inventory_items ii ON ii.variant_id = pv.id
-                                                   WHERE pv.product_id = p.id AND pv.is_deleted = FALSE
-                                           ), 0) AS available_quantity,
-                                           (
-                                                   SELECT pi.image_url
-                                                   FROM product_images pi
-                                                   WHERE pi.product_id = p.id
-                                                   ORDER BY pi.is_primary DESC, pi.display_order, pi.id
-                                                   LIMIT 1
-                                           ) AS image_url,
-                                           COUNT(*) OVER() AS total_items
-                FROM products p
-                JOIN categories c ON c.id = p.category_id AND c.is_deleted = FALSE
-                WHERE p.is_deleted = FALSE
-                  AND (CAST(? AS BIGINT) IS NULL OR p.category_id = CAST(? AS BIGINT))
-                  AND (CAST(? AS TEXT) IS NULL OR LOWER(CONCAT(p.name, ' ', p.sku, ' ', c.name)) LIKE LOWER(CONCAT('%%', CAST(? AS TEXT), '%%')))
-                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price >= CAST(? AS NUMERIC))
-                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price <= CAST(? AS NUMERIC))
-                ORDER BY %s
-                LIMIT ? OFFSET ?
-                """.formatted(orderClause(sort));
-        List<ProductListWithTotal> rows = jdbc.query(
-                sql,
-                this::mapProductListWithTotal,
-                categoryId,
-                categoryId,
-                search,
-                search,
-                minPrice,
-                minPrice,
-                maxPrice,
-                maxPrice,
-                size,
-                offset);
-        return new PageResult<>(
-                rows.stream().map(ProductListWithTotal::product).toList(),
-                rows.isEmpty() ? countProducts(categoryId, search, minPrice, maxPrice) : rows.getFirst().totalItems());
+    public PageResult<ProductListItem> findProducts(int size, int offset, Long categoryId, String search, Long minPrice, Long maxPrice, String sort) {
+        return findProducts(size, offset, categoryId, search, minPrice, maxPrice, sort, null, null);
     }
 
-    private long countProducts(Long categoryId, String search, Long minPrice, Long maxPrice) {
-        return jdbc.queryForObject("""
-                SELECT COUNT(*) FROM products p
-                JOIN categories c ON c.id = p.category_id AND c.is_deleted = FALSE
-                WHERE p.is_deleted = FALSE
-                  AND (CAST(? AS BIGINT) IS NULL OR p.category_id = CAST(? AS BIGINT))
-                  AND (CAST(? AS TEXT) IS NULL OR LOWER(CONCAT(p.name, ' ', p.sku, ' ', c.name)) LIKE LOWER(CONCAT('%', CAST(? AS TEXT), '%')))
-                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price >= CAST(? AS NUMERIC))
-                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price <= CAST(? AS NUMERIC))
-                """, Long.class, categoryId, categoryId, search, search, minPrice, minPrice, maxPrice, maxPrice);
+    public PageResult<ProductListItem> findProducts(int size, int offset, Long categoryId, String search,
+            Long minPrice, Long maxPrice, String sort, Integer rating, Boolean inStock) {
+        String filters = """
+                FROM catalog p WHERE (CAST(? AS BIGINT) IS NULL OR p.category_id = ?)
+                  AND (CAST(? AS TEXT) IS NULL OR TRANSLATE(LOWER(CONCAT(p.name, ' ', p.sku, ' ', p.category_name)),
+                    'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ',
+                    'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd') LIKE CONCAT('%', CAST(? AS TEXT), '%'))
+                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price >= ?)
+                  AND (CAST(? AS NUMERIC) IS NULL OR p.list_price <= ?)
+                  AND (CAST(? AS INT) IS NULL OR p.average_rating >= ?)
+                  AND (CAST(? AS BOOLEAN) IS NULL OR (p.available_quantity > 0) = ?)
+                """;
+        Object[] params = {categoryId, categoryId, search, search, minPrice, minPrice, maxPrice, maxPrice, rating, rating, inStock, inStock};
+        var args = new java.util.ArrayList<Object>(java.util.Arrays.asList(params));
+        args.add(size); args.add(offset);
+        var rows = jdbc.query(CATALOG_SQL + "SELECT p.*, COUNT(*) OVER() AS total_items " + filters
+                + " ORDER BY " + orderClause(sort) + " LIMIT ? OFFSET ?", this::mapProductListWithTotal, args.toArray());
+        long total = rows.isEmpty() ? jdbc.queryForObject(CATALOG_SQL + "SELECT COUNT(*) " + filters, Long.class, params) : rows.getFirst().totalItems();
+        return new PageResult<>(rows.stream().map(ProductListWithTotal::product).toList(), total);
+    }
+
+    private static final String CATALOG_SQL = """
+            WITH holds AS (
+                SELECT inventory_item_id, SUM(quantity) AS holding FROM stock_holds
+                WHERE status='HOLDING' AND expires_at > CURRENT_TIMESTAMP GROUP BY inventory_item_id
+            ), stock AS (
+                SELECT pv.product_id, SUM(GREATEST(COALESCE(ii.quantity,0)-COALESCE(ii.reserved_quantity,0)-COALESCE(h.holding,0),0)) AS available_quantity
+                FROM product_variants pv LEFT JOIN inventory_items ii ON ii.variant_id=pv.id
+                LEFT JOIN holds h ON h.inventory_item_id=ii.id WHERE pv.is_deleted=FALSE GROUP BY pv.product_id
+            ), ratings AS (
+                SELECT product_id, AVG(CAST(rating AS NUMERIC)) AS average_rating, COUNT(*) AS review_count
+                FROM product_reviews GROUP BY product_id
+            ), catalog AS (
+                SELECT p.id, p.category_id, c.name AS category_name, p.sku, p.name, p.slug, p.description, p.list_price,
+                    COALESCE(s.available_quantity,0) AS available_quantity, COALESCE(r.average_rating,0) AS average_rating,
+                    COALESCE(r.review_count,0) AS review_count,
+                    (SELECT image_url FROM product_images pi WHERE pi.product_id=p.id ORDER BY is_primary DESC, display_order, id LIMIT 1) AS image_url
+                FROM products p JOIN categories c ON c.id=p.category_id AND c.is_deleted=FALSE
+                LEFT JOIN stock s ON s.product_id=p.id LEFT JOIN ratings r ON r.product_id=p.id WHERE p.is_deleted=FALSE
+            )
+            """;
+
+    public void saveProductContent(long productId, String usageInstructions, List<String> images) {
+        jdbc.update("UPDATE products SET usage_instructions = ? WHERE id = ?", usageInstructions, productId);
+        for (int index = 0; index < images.size(); index++) {
+            jdbc.update("INSERT INTO product_images(product_id, image_url, display_order, is_primary) VALUES (?, ?, ?, ?)",
+                    productId, images.get(index), index, index == 0);
+        }
+    }
+
+    public void updateProductContent(long productId, String description, String usageInstructions, List<String> images) {
+        jdbc.update("UPDATE products SET description=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", description,productId);
+        jdbc.update("DELETE FROM product_images WHERE product_id=?", productId);
+        saveProductContent(productId,usageInstructions,images);
     }
 
     public Optional<ProductDetailResponse> findProduct(long id) {
         String productSql = """
                 SELECT p.id, p.category_id, c.name AS category_name, p.sku, p.name,
                        p.slug, p.description, p.cost_price, p.list_price,
-                       p.created_at, p.updated_at
+                       p.created_at, p.updated_at, p.usage_instructions,
+                       COALESCE((SELECT AVG(CAST(rating AS NUMERIC)) FROM product_reviews WHERE product_id=p.id),0) AS average_rating,
+                       (SELECT COUNT(*) FROM product_reviews WHERE product_id=p.id) AS review_count
                 FROM products p
                 JOIN categories c ON c.id = p.category_id AND c.is_deleted = FALSE
                 WHERE p.id = ? AND p.is_deleted = FALSE
@@ -262,7 +247,7 @@ public class CatalogRepository {
                 product.createdAt(),
                 product.updatedAt(),
                 variants,
-                images));
+                images, product.usageInstructions(), product.averageRating(), product.reviewCount()));
     }
 
     private CategoryResponseWithTotal mapCategoryWithTotal(ResultSet rs, int rowNum)
@@ -293,7 +278,7 @@ public class CatalogRepository {
                         rs.getString("description"),
                         integerAmount(rs, "list_price"),
                         rs.getLong("available_quantity"),
-                        rs.getString("image_url")),
+                        rs.getString("image_url"), rs.getDouble("average_rating"), rs.getLong("review_count")),
                 rs.getLong("total_items"));
     }
 
@@ -309,7 +294,8 @@ public class CatalogRepository {
                 integerAmount(rs, "cost_price"),
                 integerAmount(rs, "list_price"),
                 rs.getObject("created_at", java.time.OffsetDateTime.class),
-                rs.getObject("updated_at", java.time.OffsetDateTime.class));
+                rs.getObject("updated_at", java.time.OffsetDateTime.class),
+                rs.getString("usage_instructions"), rs.getDouble("average_rating"), rs.getLong("review_count"));
     }
 
     private long integerAmount(ResultSet rs, String column) throws SQLException {
@@ -325,7 +311,8 @@ public class CatalogRepository {
         return switch (sort) {
             case "priceAsc" -> "p.list_price ASC, p.id DESC";
             case "priceDesc" -> "p.list_price DESC, p.id DESC";
-            case "newest" -> "p.created_at DESC, p.id DESC";
+            case "newest" -> "p.id DESC";
+            case "rating" -> "p.average_rating DESC, p.review_count DESC, p.id DESC";
             default -> throw new IllegalArgumentException("Unsupported product sort: " + sort);
         };
     }
@@ -369,5 +356,5 @@ public class CatalogRepository {
             long costPrice,
             long listPrice,
             java.time.OffsetDateTime createdAt,
-            java.time.OffsetDateTime updatedAt) {}
+            java.time.OffsetDateTime updatedAt, String usageInstructions, double averageRating, long reviewCount) {}
 }

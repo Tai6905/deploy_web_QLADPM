@@ -31,6 +31,8 @@ class AuthHttpIntegrationTest {
     @BeforeEach void historySchema() {
         new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
                 new org.springframework.core.io.ClassPathResource("account-history-schema.sql")).execute(jdbc.getDataSource());
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource("storefront-schema.sql")).execute(jdbc.getDataSource());
     }
     com.shopflow.backend.entity.User user(String role) {
         var result = auth.registerUser(UUID.randomUUID() + "@example.invalid", password, "Regression " + role);
@@ -127,6 +129,50 @@ class AuthHttpIntegrationTest {
         assertEquals(200, request(client(), "/swagger-ui/index.html", "GET", null, null).statusCode());
         assertEquals(401, request(client(), "/orders", "GET", null, null).statusCode());
         assertEquals(200, request(client(), "/api/auth/session", "GET", null, null).statusCode());
+    }
+    @Test void storefrontSupportsGalleryReviewsAndServerFilters() throws Exception {
+        var owner = user("SHOP_OWNER"); var ownerClient = client(); login(ownerClient, owner.getEmail());
+        String tag = UUID.randomUUID().toString();
+        var category = request(ownerClient, "/categories", "POST", "{\"name\":\"Test\",\"slug\":\"" + tag + "\"}", csrf(ownerClient));
+        assertEquals(201, category.statusCode(), category.body());
+        long categoryId = jdbc.queryForObject("SELECT id FROM categories WHERE slug=?", Long.class, tag);
+        String content = "{\"categoryId\":" + categoryId + ",\"sku\":\"" + tag + "\",\"name\":\"Bình mộc " + tag + "\",\"description\":\"Product introduction\",\"costPrice\":10000,\"listPrice\":25000,\"usageInstructions\":\"Wash by hand\",\"imageUrls\":[\"https://example.invalid/one.jpg\",\"https://example.invalid/two.jpg\"]}";
+        var created = request(ownerClient, "/products", "POST", content, csrf(ownerClient));
+        assertEquals(201, created.statusCode(), created.body());
+        assertTrue(created.body().contains("Wash by hand")); assertTrue(created.body().contains("two.jpg"));
+        assertFalse(created.body().contains("costPrice"));
+        long productId = jdbc.queryForObject("SELECT id FROM products WHERE sku=?", Long.class, tag.toUpperCase());
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM product_images WHERE product_id=?", Integer.class, productId));
+        var customer = user("CUSTOMER"); var customerClient = client(); login(customerClient, customer.getEmail());
+        String contentPath = "/products/" + productId + "/content";
+        String replacement = "{\"description\":\"Updated description\",\"usageInstructions\":\"Dry after washing\",\"imageUrls\":[\"https://example.invalid/replaced.jpg\"]}";
+        assertEquals(403, request(customerClient, contentPath, "PUT", replacement, csrf(customerClient)).statusCode());
+        var edited = request(ownerClient, contentPath, "PUT", replacement, csrf(ownerClient));
+        assertEquals(200, edited.statusCode(), edited.body());
+        assertTrue(edited.body().contains("Dry after washing"));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM product_images WHERE product_id=?", Integer.class, productId));
+        assertEquals(400, request(ownerClient, contentPath, "PUT", replacement.replace("https://example.invalid/replaced.jpg", "javascript:alert(1)"), csrf(ownerClient)).statusCode());
+        assertEquals("https://example.invalid/replaced.jpg", jdbc.queryForObject("SELECT image_url FROM product_images WHERE product_id=?", String.class, productId));
+        String reviewPath = "/products/" + productId + "/reviews";
+        var anonymous = client();
+        assertEquals(401, request(anonymous, reviewPath, "PUT", "{\"rating\":5,\"comment\":\"Nice\"}", csrf(anonymous)).statusCode());
+        assertEquals(403, request(customerClient, reviewPath, "PUT", "{\"rating\":5,\"comment\":\"Nice\"}", csrf(customerClient)).statusCode());
+        long orderId = seedOrder(customer.getId());
+        jdbc.update("UPDATE order_items SET product_id=? WHERE order_id=?", productId, orderId);
+        jdbc.update("UPDATE orders SET delivery_status='DELIVERED' WHERE id=?", orderId);
+        assertEquals(200, request(customerClient, reviewPath, "PUT", "{\"rating\":4,\"comment\":\"Good\"}", csrf(customerClient)).statusCode());
+        assertEquals(200, request(customerClient, reviewPath, "PUT", "{\"rating\":5,\"comment\":\"Updated review\"}", csrf(customerClient)).statusCode());
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM product_reviews WHERE product_id=?", Integer.class, productId));
+        var reviews = request(client(), reviewPath, "GET", null, null);
+        assertEquals(200, reviews.statusCode()); assertTrue(reviews.body().contains("Updated review")); assertFalse(reviews.body().contains(customer.getEmail()));
+        String query = java.net.URLEncoder.encode("binh moc " + tag, java.nio.charset.StandardCharsets.UTF_8);
+        var found = request(client(), "/products?q=" + query + "&rating=4&minPrice=20000&maxPrice=30000&sort=rating", "GET", null, null);
+        assertEquals(200, found.statusCode(), found.body()); assertTrue(found.body().contains("\"totalItems\":1"), found.body());
+        var unavailable = request(client(), "/products?q=" + query + "&inStock=true", "GET", null, null);
+        assertEquals(200, unavailable.statusCode(), unavailable.body()); assertTrue(unavailable.body().contains("\"totalItems\":0"));
+        jdbc.update("UPDATE inventory_items SET quantity=4 WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id=?)", productId);
+        var available = request(client(), "/products?q=" + query + "&inStock=true", "GET", null, null);
+        assertEquals(200, available.statusCode(), available.body()); assertTrue(available.body().contains("\"totalItems\":1"));
     }
     @Test void productJsonNeverExposesCostPrice() throws Exception {
         var now = java.time.OffsetDateTime.now();

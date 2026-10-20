@@ -78,11 +78,16 @@ public class CatalogService {
             Long maxPrice,
             Integer rating,
             String sort) {
+        return listProducts(page, size, categoryId, search, minPrice, maxPrice, rating, sort, null);
+    }
+
+    public PageResult<ProductListItem> listProducts(int page, int size, Long categoryId, String search,
+            Long minPrice, Long maxPrice, Integer rating, String sort, Boolean inStock) {
         validatePriceRange(minPrice, maxPrice);
-        if (rating != null) {
-            throw new IllegalArgumentException("rating filter requires review data");
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new IllegalArgumentException("rating must be between 1 and 5");
         }
-        String normalizedSearch = search == null || search.isBlank() ? null : search.trim();
+        String normalizedSearch = search == null || search.isBlank() ? null : Normalizer.normalize(search.trim().toLowerCase(Locale.ROOT), Normalizer.Form.NFD).replaceAll("\\p{M}+", "").replace('đ', 'd');
         String normalizedSort = normalizeSort(sort);
         return repository.findProducts(
                 size,
@@ -91,7 +96,7 @@ public class CatalogService {
                 normalizedSearch,
                 minPrice,
                 maxPrice,
-                normalizedSort);
+                normalizedSort, rating, inStock);
     }
 
     public ProductDetailResponse getProduct(long id) {
@@ -101,6 +106,33 @@ public class CatalogService {
 
     @Transactional
     public ProductDetailResponse createProduct(ProductCreateRequest request) {
+        var images = validatedImages(request.imageUrls());
+        return createProductWithImages(request, images);
+    }
+
+    private java.util.List<String> validatedImages(java.util.List<String> imageUrls) {
+        if (imageUrls != null && imageUrls.stream().anyMatch(java.util.Objects::isNull)) throw new IllegalArgumentException("Link ảnh không được để trống.");
+        var images = imageUrls == null ? java.util.List.<String>of() : imageUrls.stream().map(String::trim).distinct().toList();
+        if (images.size() > 8) throw new IllegalArgumentException("Tối đa 8 ảnh sản phẩm.");
+        for (String image : images) {
+            try {
+                var uri = java.net.URI.create(image);
+                if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme())) || uri.getHost() == null || uri.getUserInfo() != null || image.length() > 500)
+                    throw new IllegalArgumentException();
+            } catch (IllegalArgumentException error) { throw new IllegalArgumentException("Link ảnh phải là URL HTTP/HTTPS hợp lệ."); }
+        }
+        return images;
+    }
+
+    @Transactional
+    public ProductDetailResponse updateContent(long id, com.modernshopflow.catalog.api.ProductContentRequest request) {
+        getProduct(id);
+        var images = validatedImages(request.imageUrls());
+        repository.updateProductContent(id, request.description(), request.usageInstructions(), images);
+        return getProduct(id);
+    }
+
+    private ProductDetailResponse createProductWithImages(ProductCreateRequest request, java.util.List<String> images) {
         if (request.listPrice() == null || request.listPrice().signum() <= 0
                 || request.listPrice().stripTrailingZeros().scale() > 0
                 || (request.costPrice() != null && (request.costPrice().signum() < 0
@@ -126,6 +158,7 @@ public class CatalogService {
             throw new CatalogConflictException("Product SKU or slug already exists");
         }
         repository.insertDefaultVariant(productId);
+        repository.saveProductContent(productId, request.usageInstructions(), images);
         return getProduct(productId);
     }
 
@@ -169,8 +202,7 @@ public class CatalogService {
             return "newest";
         }
         return switch (sort) {
-            case "priceAsc", "priceDesc", "newest" -> sort;
-            case "rating" -> throw new IllegalArgumentException("rating sort requires review data");
+            case "priceAsc", "priceDesc", "newest", "rating" -> sort;
             default -> throw new IllegalArgumentException(
                     "sort must be one of: priceAsc, priceDesc, newest");
         };

@@ -30,11 +30,11 @@ export function useCart(storage?: Storage, key = "shopflow.cart.v1") {
     catch { /* A full storage quota must not prevent checkout. */ }
   }, { deep: true });
 
-  function add(product: Product) {
+  function add(product: Product, amount = 1) {
     const quantity = cart.value[product.id] || 0;
-    if (quantity >= product.stock) return false;
+    if (!Number.isSafeInteger(amount) || amount < 1 || quantity + amount > product.stock) return false;
     snapshots.value[product.id] = { ...product };
-    cart.value[product.id] = quantity + 1;
+    cart.value[product.id] = quantity + amount;
     return true;
   }
   function adjust(productId: number, delta: number) {

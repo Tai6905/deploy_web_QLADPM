@@ -16,7 +16,9 @@ export type PageQuery = {
   categoryId?: number;
   minPrice?: number;
   maxPrice?: number;
-  sort?: "newest" | "priceAsc" | "priceDesc";
+  rating?: number;
+  inStock?: boolean;
+  sort?: "newest" | "priceAsc" | "priceDesc" | "rating";
 };
 export type ApiPage<T> = {
   items: T[];
@@ -50,6 +52,8 @@ export type ProductCreateRequest = {
   description?: string | null;
   costPrice?: number;
   listPrice: number;
+  usageInstructions?: string | null;
+  imageUrls?: string[];
 };
 export type ProductListItem = {
   id: number;
@@ -62,8 +66,13 @@ export type ProductListItem = {
   listPrice: number;
   availableQuantity: number;
   imageUrl: string | null;
+  averageRating: number;
+  reviewCount: number;
 };
 export type ProductDetail = {
+  usageInstructions: string | null;
+  averageRating: number;
+  reviewCount: number;
   id: number;
   categoryId: number;
   categoryName: string;
@@ -136,6 +145,8 @@ export type ReceivingResponse = {
   variantId: number;
   productName: string;
   quantity: number;
+  unitCost: number | null;
+  totalCost: number | null;
   supplierName: string | null;
   note: string | null;
   createdAt: string;
@@ -181,6 +192,9 @@ export type ReturnableOrder = {
   }>;
 };
 export type DashboardSummary = {
+  purchasingTotal: number;
+  inventoryCostEstimate: number;
+  unpricedReceiptCount: number;
   range: "7d" | "30d" | "90d";
   revenue: number;
   orderCount: number;
@@ -248,10 +262,15 @@ function queryString(query: PageQuery) {
   if (query.maxPrice !== undefined)
     params.set("maxPrice", String(query.maxPrice));
   if (query.sort) params.set("sort", query.sort);
+  if (query.rating !== undefined) params.set("rating", String(query.rating));
+  if (query.inStock !== undefined) params.set("inStock", String(query.inStock));
   return params.toString();
 }
 
 export interface ShopflowApi {
+  getReviews(productId: number, page?: number): Promise<ApiPage<ProductReview>>;
+  getReviewEligibility(productId: number): Promise<ReviewEligibility>;
+  saveReview(productId: number, input: { rating: number; comment: string }): Promise<void>;
   getProfile(): Promise<AccountProfile>;
   updateProfile(input: { displayName: string; phone: string | null }): Promise<AccountProfile>;
   changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
@@ -271,6 +290,7 @@ export interface ShopflowApi {
   createEmployee(input: CreateEmployeeRequest): Promise<SessionUser>;
   getProducts(query: PageQuery): Promise<ApiPage<ProductListItem>>;
   createProduct(input: ProductCreateRequest): Promise<ProductDetail>;
+  updateProductContent(id: number, input: { description: string | null; usageInstructions: string | null; imageUrls: string[] }): Promise<ProductDetail>;
   getProduct(id: number): Promise<ProductDetail>;
   getCategories(query: Pick<PageQuery, "page" | "size">): Promise<ApiPage<Category>>;
   createCategory(input: CategoryInput): Promise<Category>;
@@ -284,7 +304,7 @@ export interface ShopflowApi {
   adjustInventory(variantId: number, delta: number, reason: string): Promise<InventoryItem>;
   updateThreshold(productId: number, lowStockThreshold: number): Promise<void>;
   listReceivings(limit?: number): Promise<ReceivingResponse[]>;
-  receiveStock(input: { variantId: number; quantity: number; supplierName?: string; note?: string }): Promise<ReceivingResponse>;
+  receiveStock(input: { variantId: number; quantity: number; unitCost: number; supplierName?: string; note?: string }): Promise<ReceivingResponse>;
   getDeliveries(): Promise<DeliveryOrder[]>;
   updateDelivery(orderId: number, toStatus: DeliveryOrder["deliveryStatus"]): Promise<DeliveryOrder>;
   getReturns(limit?: number): Promise<ApiReturnRequest[]>;
@@ -294,6 +314,10 @@ export interface ShopflowApi {
 }
 
 export const shopflowApi: ShopflowApi = {
+  updateProductContent: (id, input) => apiRequest<ProductDetail>(`/products/${id}/content`, { method: "PUT", body: JSON.stringify(input) }),
+  getReviews: (id, page = 0) => apiRequest<ApiPage<ProductReview>>(`/products/${id}/reviews?page=${page}&size=6`),
+  getReviewEligibility: (id) => apiRequest<ReviewEligibility>(`/products/${id}/review-eligibility`),
+  saveReview: (id, input) => apiRequest<void>(`/products/${id}/reviews`, { method: "PUT", body: JSON.stringify(input) }),
   getProfile: () => apiRequest<AccountProfile>("/api/account"),
   updateProfile: (input) => apiRequest<AccountProfile>("/api/account", { method: "PUT", body: JSON.stringify(input) }),
   changePassword: (input) => apiRequest<void>("/api/account/password", { method: "PUT", body: JSON.stringify(input) }),
@@ -381,3 +405,6 @@ export function paginate<T>(items: T[], query: PageQuery) {
   const start = (page - 1) * size;
   return { items: items.slice(start, start + size), total, page, size, totalPages };
 }
+
+export type ProductReview = { id: number; displayName: string; rating: number; comment: string; updatedAt: string; verifiedPurchase: boolean };
+export type ReviewEligibility = { canReview: boolean; myReview: { rating: number; comment: string } | null; reason: string | null };

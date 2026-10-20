@@ -37,11 +37,12 @@ public class ProductController {
             @RequestParam(required = false) Long minPrice,
             @RequestParam(required = false) Long maxPrice,
             @RequestParam(required = false) Integer rating,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) Boolean inStock) {
         int requestedPage = page == null ? 0 : page;
         int requestedSize = size != null ? size : limit != null ? limit : 20;
         PageResult<ProductListItem> result = service.listProducts(
-                requestedPage, requestedSize, categoryId, search, minPrice, maxPrice, rating, sort);
+                requestedPage, requestedSize, categoryId, search, minPrice, maxPrice, rating, sort, inStock);
         return PageResponse.fromPageResult(result, requestedPage, requestedSize);
     }
 
@@ -54,5 +55,11 @@ public class ProductController {
     public ResponseEntity<ProductDetailResponse> createProduct(
             @Valid @RequestBody ProductCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createProduct(request));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{id}/content")
+    public ProductDetailResponse updateContent(@PathVariable long id,
+            @Valid @RequestBody com.modernshopflow.catalog.api.ProductContentRequest request) {
+        return service.updateContent(id,request);
     }
 }

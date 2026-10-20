@@ -24,6 +24,13 @@ public class ReceivingService {
 
     @Transactional
     public ReceivingResponse receive(ReceivingRequest request) {
+        if (request.unitCost() == null || request.unitCost().signum() < 0 || request.unitCost().stripTrailingZeros().scale() > 0
+                || request.unitCost().compareTo(new java.math.BigDecimal("9999999999")) > 0) {
+            throw new IllegalArgumentException("Giá nhập phải là số nguyên VND từ 0 đến 9.999.999.999.");
+        }
+        if (request.quantity() == null || request.quantity() < 1) throw new IllegalArgumentException("Số lượng nhập phải lớn hơn 0.");
+        try { request.unitCost().multiply(java.math.BigDecimal.valueOf(request.quantity())).longValueExact(); }
+        catch (ArithmeticException error) { throw new IllegalArgumentException("Tổng tiền nhập vượt giới hạn hỗ trợ."); }
         LockedInventory inventory;
         try {
             inventory = inventoryRepository.lock(request.variantId());
@@ -40,7 +47,8 @@ public class ReceivingService {
         inventoryRepository.updateQuantity(inventory.inventoryId(), updated);
         String supplier = normalize(request.supplierName());
         String note = normalize(request.note());
-        long receivingId = receivingRepository.insert(request.variantId(), request.quantity(), supplier, note);
+        long receivingId = receivingRepository.insert(request.variantId(), request.quantity(), supplier, note, request.unitCost());
+        receivingRepository.updateLatestCost(request.variantId(), request.unitCost());
         receivingRepository.insertMovement(request.variantId(), request.quantity(), receivingId, note);
         return receivingRepository.get(receivingId);
     }

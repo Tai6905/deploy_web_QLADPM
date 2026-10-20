@@ -72,6 +72,9 @@ import ReturnsPage from "./views/ReturnsPage.vue";
 import StaffPage from "./views/StaffPage.vue";
 import AccountPage from "./views/AccountPage.vue";
 import AnimatedNumber from "./components/AnimatedNumber.vue";
+import ProductPage from "./views/ProductPage.vue";
+import StoreInfoPage from "./views/StoreInfoPage.vue";
+import ProductImage from "./components/ProductImage.vue";
 import {
   toDeliveryOrder,
   toInventoryProduct,
@@ -85,6 +88,8 @@ type ModalKind = "order" | "product" | "stock" | "return" | "checkout" | null;
 const route = useRoute();
 const router = useRouter();
 const page = computed(() =>
+  route.path.startsWith("/product/") ? "product" :
+  route.path === "/about" || route.path === "/guide" ? route.path.slice(1) :
   route.path === "/login" ||
   route.path === "/forbidden" ||
   route.path === "/profile" ||
@@ -110,7 +115,14 @@ const apiReturnableOrders = ref<ReturnableOrder[]>([]);
 const apiCategories = ref<Category[]>([]);
 const apiCategoriesLoaded = ref(false);
 const categoryFilter = ref("all");
-const sortFilter = ref<"newest" | "priceAsc" | "priceDesc">("newest");
+const sortFilter = ref<"newest" | "priceAsc" | "priceDesc" | "rating">("newest");
+const minPriceFilter = ref<number | null>(null), maxPriceFilter = ref<number | null>(null);
+const ratingFilter = ref(0), stockFilter = ref(false);
+const filterError = computed(() => {
+  if ([minPriceFilter.value, maxPriceFilter.value].some(value => value != null && (!Number.isSafeInteger(value) || value < 0))) return 'Giá lọc phải là số nguyên VND không âm.';
+  return minPriceFilter.value != null && maxPriceFilter.value != null && minPriceFilter.value > maxPriceFilter.value ? 'Giá thấp nhất phải nhỏ hơn hoặc bằng giá cao nhất.' : '';
+});
+function resetStoreFilters() { minPriceFilter.value = null; maxPriceFilter.value = null; ratingFilter.value = 0; stockFilter.value = false; categoryFilter.value = 'all'; sortFilter.value = 'newest'; search.value = ''; }
 const apiProductLoading = ref(false);
 const apiProductSaving = ref(false);
 const apiOrderSaving = ref(false);
@@ -150,6 +162,8 @@ function toCatalogProduct(item: ProductListItem): Product {
     threshold: 0,
     color: "sage",
     image: item.imageUrl || "",
+    averageRating: item.averageRating,
+    reviewCount: item.reviewCount,
   };
 }
 
@@ -159,6 +173,10 @@ const form = reactive({
   category: "Đồ dùng",
   categoryId: 0,
   price: 0,
+  unitCost: 0,
+  description: "",
+  usageInstructions: "",
+  imageUrls: "",
   quantity: 1,
   customer: "",
   supplier: "",
@@ -407,7 +425,7 @@ watch(search, (value) => {
     if (currentPage.value !== 1) void updatePagination(1);
   }, 250);
 });
-watch([categoryFilter, sortFilter], () => {
+watch([categoryFilter, sortFilter, minPriceFilter, maxPriceFilter, ratingFilter, stockFilter], () => {
   if (currentPage.value !== 1) void updatePagination(1);
 });
 watch(products, (items) => {
@@ -421,7 +439,7 @@ watch(page, () => {
   categoryFilter.value = "all";
 });
 watch(
-  [page, currentPage, pageSize, debouncedSearch, categoryFilter, sortFilter],
+  [page, currentPage, pageSize, debouncedSearch, categoryFilter, sortFilter, minPriceFilter, maxPriceFilter, ratingFilter, stockFilter],
   async ([activePage]) => {
     const loadId = ++catalogLoadId;
     if (
@@ -431,6 +449,7 @@ watch(
       return;
     apiProductLoading.value = true;
     apiProductError.value = "";
+    if (filterError.value) { apiProductError.value = filterError.value; apiProductLoading.value = false; return; }
     products.value = [];
     apiProductPage.value = null;
     try {
@@ -444,6 +463,10 @@ watch(
               ? undefined
               : Number(categoryFilter.value),
           sort: sortFilter.value,
+          minPrice: minPriceFilter.value ?? undefined,
+          maxPrice: maxPriceFilter.value ?? undefined,
+          rating: ratingFilter.value || undefined,
+          inStock: stockFilter.value || undefined,
         }),
         apiCategoriesLoaded.value
           ? Promise.resolve(null)
@@ -474,7 +497,7 @@ watch(
   [page, workspacePage, workspaceSize, workspaceSearch],
   async ([activePage]) => {
     const loadId = ++workspaceLoadId;
-    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases"].includes(activePage)) {
+    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide"].includes(activePage)) {
       apiWorkspaceLoading.value = false;
       return;
     }
@@ -571,8 +594,8 @@ async function passwordChanged() {
   notify("Đã đổi mật khẩu. Vui lòng đăng nhập lại.");
 }
 
-function addToCart(product: Product) {
-  if (!addCartItem(product)) {
+function addToCart(product: Product, quantity = 1) {
+  if (!addCartItem(product, quantity)) {
     notify("Số lượng trong giỏ đã đạt tồn kho hiện có");
     return;
   }
@@ -621,6 +644,7 @@ function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
     null;
   formError.value = "";
   Object.assign(form, {
+    unitCost: 0, description: "", usageInstructions: "", imageUrls: "",
     name: "",
     sku: "",
     category: "Đồ dùng",
@@ -810,6 +834,7 @@ async function submitModal() {
     return;
   }
   if (modalKind.value === "product") {
+    if (!Number.isSafeInteger(form.unitCost) || form.unitCost < 0) { formError.value = "Giá nhập phải là số nguyên VND không âm."; return; }
     if (!form.name.trim() || !form.sku.trim() || form.price <= 0) {
       formError.value = "Vui lòng điền tên, mã SKU và giá bán hợp lệ.";
       return;
@@ -827,6 +852,10 @@ async function submitModal() {
           name: form.name.trim(),
           sku: form.sku.trim(),
           listPrice: form.price,
+          costPrice: form.unitCost,
+          description: form.description.trim() || null,
+          usageInstructions: form.usageInstructions.trim() || null,
+          imageUrls: form.imageUrls.split(/\r?\n/).map(value => value.trim()).filter(Boolean),
         });
         search.value = "";
         categoryFilter.value = "all";
@@ -938,12 +967,15 @@ async function submitModal() {
       formError.value = "Chọn biến thể sản phẩm và số lượng nhập hợp lệ.";
       return;
     }
+    if (!Number.isSafeInteger(form.unitCost) || form.unitCost < 0) { formError.value = "Nhập giá mua hợp lệ (VND nguyên)."; return; }
     apiStockSaving.value = true;
     try {
       await shopflowApi.receiveStock({
         variantId: product.variantId,
         quantity: form.quantity,
+        unitCost: form.unitCost,
         supplierName: form.supplier.trim() || undefined,
+        note: form.reason.trim() || undefined,
       });
       const inventory = await shopflowApi.getInventory();
       apiInventory.value = inventory;
@@ -1195,7 +1227,7 @@ function exportOrders() {
   link.href = URL.createObjectURL(
     new Blob([csv], { type: "text/csv;charset=utf-8" }),
   );
-  link.download = "shopflow-don-hang.csv";
+  link.download = "moc-studio-don-hang.csv";
   link.click();
   URL.revokeObjectURL(link.href);
   notify("Đã xuất danh sách đơn hàng");
@@ -1223,7 +1255,7 @@ function exportProducts() {
   link.href = URL.createObjectURL(
     new Blob([csv], { type: "text/csv;charset=utf-8" }),
   );
-  link.download = "shopflow-san-pham.csv";
+  link.download = "moc-studio-san-pham.csv";
   link.click();
   URL.revokeObjectURL(link.href);
   notify("Đã xuất danh mục sản phẩm");
@@ -1338,6 +1370,8 @@ function statusClass(status: string) {
 
 <template>
   <LoginPage v-if="page === 'login'" />
+  <ProductPage v-else-if="page === 'product'" :product-id="Number(route.params.id)" :cart-quantity="cart[Number(route.params.id)] || 0" @add="addToCart" />
+  <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :section="page" />
   <AccountPage v-else-if="page === 'profile' || page === 'purchases'" :tab="page" @logout="logout" @password-changed="passwordChanged" />
   <main v-else-if="page === 'forbidden'" class="auth-page">
     <section class="auth-panel forbidden-panel">
@@ -1358,7 +1392,7 @@ function statusClass(status: string) {
   </main>
   <main v-else-if="page === 'customer'" class="storefront-page">
     <header class="storefront-header">
-      <RouterLink to="/overview" class="store-brand"
+      <RouterLink to="/customer" class="store-brand"
         ><span class="brand-mark"><span></span><span></span><span></span></span
         ><strong>Mộc Studio</strong></RouterLink
       ><label class="store-search"
@@ -1378,6 +1412,7 @@ function statusClass(status: string) {
         </option>
       </select>
       <div class="store-header-actions">
+        <RouterLink to="/about" class="text-link">Về chúng tôi</RouterLink><RouterLink to="/guide" class="text-link">Cẩm nang</RouterLink>
         <RouterLink
           v-if="currentUser && currentRole !== 'CUSTOMER'"
           :to="landingPage(currentRole)"
@@ -1430,6 +1465,13 @@ function statusClass(status: string) {
           </div>
           <span>{{ productPage.total }} sản phẩm</span>
         </div>
+        <form class="catalog-filters" @submit.prevent>
+          <label>Giá từ<input :value="minPriceFilter ?? ''" type="number" min="0" step="10000" placeholder="0 ₫" @change="minPriceFilter = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" /></label>
+          <label>Đến<input :value="maxPriceFilter ?? ''" type="number" min="0" step="10000" placeholder="Không giới hạn" @change="maxPriceFilter = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" /></label>
+          <label>Sắp xếp<select v-model="sortFilter"><option value="newest">Mới nhất</option><option value="priceAsc">Giá tăng dần</option><option value="priceDesc">Giá giảm dần</option><option value="rating">Đánh giá cao</option></select></label>
+          <label>Đánh giá<select v-model.number="ratingFilter"><option :value="0">Tất cả</option><option v-for="star in [5,4,3,2,1]" :key="star" :value="star">Từ {{ star }} sao</option></select></label>
+          <label class="stock-filter"><input v-model="stockFilter" type="checkbox" />Chỉ còn hàng</label><button type="button" class="text-link" @click="resetStoreFilters">Xóa bộ lọc</button>
+        </form>
         <div v-if="apiProductLoading && !filteredProducts.length" class="catalog-skeleton" role="status" aria-label="Đang tải sản phẩm">
           <div v-for="item in 6" :key="item" class="skeleton-card" aria-hidden="true"><div class="skeleton-image"></div><i></i><i></i><i></i></div>
           <span class="sr-only">Đang tải sản phẩm…</span>
@@ -1443,23 +1485,24 @@ function statusClass(status: string) {
             v-reveal="index % 6"
             class="store-product"
           >
-            <div class="store-product-image">
-              <img :src="product.image" :alt="product.name" loading="lazy" decoding="async" /><span
+            <RouterLink :to="`/product/${product.id}`" class="store-product-image" :aria-label="`Xem ${product.name}`">
+              <ProductImage :src="product.image" :alt="product.name" /><span
                 v-if="product.stock <= product.threshold && product.stock > 0"
                 class="stock-ribbon"
                 >Sắp hết</span
               ><span v-if="product.stock === 0" class="stock-ribbon sold-out"
                 >Hết hàng</span
               >
-            </div>
+            </RouterLink>
             <div class="store-product-meta">
               <span>{{ product.category }}</span
               ><span>SKU {{ product.sku }}</span>
             </div>
             <h3>
-              <button v-if="dataSource === 'api'" class="store-product-detail-link" @click="openProductDetail(product.id)">{{ product.name }}</button>
+              <RouterLink v-if="dataSource === 'api'" class="store-product-detail-link" :to="`/product/${product.id}`">{{ product.name }}</RouterLink>
               <span v-else>{{ product.name }}</span>
             </h3>
+            <p class="store-card-rating">★ {{ product.reviewCount ? `${product.averageRating?.toFixed(1)} · ${product.reviewCount} đánh giá` : 'Chưa có đánh giá' }}</p>
             <div class="store-product-bottom">
               <strong>{{ money(product.price) }}</strong
               ><button
@@ -1485,7 +1528,7 @@ function statusClass(status: string) {
           @change-size="setPageSize"
         />
       </section>
-      <aside v-reveal="2" class="store-cart-panel">
+      <aside id="cart" v-reveal="2" class="store-cart-panel">
         <div class="store-cart-heading">
           <div>
             <span class="auth-kicker">GIỎ HÀNG</span>
@@ -1543,8 +1586,8 @@ function statusClass(status: string) {
       </aside>
     </div>
     <footer class="storefront-footer">
-      <span>© 2026 Mộc Studio · ShopFlow</span
-      ><span>Đơn giản hơn, có chủ đích hơn.</span>
+      <span>© 2026 Mộc Studio · Mộc Studio</span
+      ><nav class="store-footer-links"><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang mua sắm</RouterLink></nav><span>Đơn giản hơn, có chủ đích hơn.</span>
     </footer>
     <Transition name="dialog">
     <ProductDetailDialog
@@ -1598,7 +1641,7 @@ function statusClass(status: string) {
     <aside class="sidebar" :class="{ 'sidebar--open': mobileMenuOpen }">
       <div class="brand-lockup">
         <div class="brand-mark"><span></span><span></span><span></span></div>
-        <div><strong>shopflow</strong><small>STORE OPERATIONS</small></div>
+        <div><strong>Mộc Studio</strong><small>QUẢN LÝ CỬA HÀNG</small></div>
         <button
           class="icon-button sidebar-close"
           aria-label="Đóng menu"
@@ -1649,9 +1692,9 @@ function statusClass(status: string) {
       <div class="sidebar-bottom">
         <div class="plan-card">
           <div class="plan-icon"><Sparkles :size="16" /></div>
-          <strong>Shopflow Pro</strong>
+          <strong>Mộc Studio</strong>
           <p>Quản lý cửa hàng dễ dàng hơn mỗi ngày.</p>
-          <button @click="notify('Bạn đang sử dụng gói demo Shopflow Pro')">
+          <button @click="notify('Bạn đang sử dụng gói demo Mộc Studio')">
             Tìm hiểu thêm <ArrowRight :size="14" />
           </button>
         </div>
@@ -1885,6 +1928,11 @@ function statusClass(status: string) {
               </div>
             </article>
           </section>
+          <section v-if="dataSource === 'api'" class="cost-overview-grid">
+            <article class="stat-card"><div class="stat-top"><span>Tiền nhập hàng · 7 ngày</span><PackagePlus :size="18" /></div><strong><AnimatedNumber :value="apiDashboard?.purchasingTotal || 0" :format="money" /></strong><p class="cost-caption">Theo giá đã ghi trên từng phiếu nhập.</p></article>
+            <article class="stat-card"><div class="stat-top"><span>Giá trị tồn kho ước tính</span><Boxes :size="18" /></div><strong><AnimatedNumber :value="apiDashboard?.inventoryCostEstimate || 0" :format="money" /></strong><p class="cost-caption">Số lượng tồn × giá nhập gần nhất; không phải lợi nhuận.</p></article>
+          </section>
+          <p v-if="apiDashboard?.unpricedReceiptCount" class="cost-warning">Có {{ apiDashboard.unpricedReceiptCount }} phiếu nhập cũ chưa có giá trong kỳ; tổng tiền nhập chỉ tính các phiếu đã có giá.</p>
 
           <section class="overview-grid">
             <article v-reveal class="panel revenue-panel">
@@ -2188,7 +2236,7 @@ function statusClass(status: string) {
         />
 
         <footer class="app-footer">
-          <span>© 2026 ShopFlow</span
+          <span>© 2026 Mộc Studio</span
           ><span>Vận hành cửa hàng, nhẹ nhàng hơn.</span
           ><span class="footer-status"
             ><i></i> Hệ thống hoạt động bình thường</span
@@ -2331,7 +2379,14 @@ function statusClass(status: string) {
               type="number"
               min="1"
               placeholder="0" /></label
-        ></template>
+        >
+          <label class="form-label">Giá nhập ban đầu (VND)<input v-model.number="form.unitCost" type="number" min="0" max="9999999999" step="1" /></label>
+          <label class="form-label">Giới thiệu sản phẩm<textarea v-model="form.description" rows="4" maxlength="5000" placeholder="Chất liệu, công dụng, kích thước…" /></label>
+          <label class="form-label">Hướng dẫn sử dụng<textarea v-model="form.usageInstructions" rows="4" maxlength="5000" placeholder="Cách sử dụng và bảo quản riêng của sản phẩm" /></label>
+          <label class="form-label">Link ảnh (mỗi dòng một URL, tối đa 8)<textarea v-model="form.imageUrls" rows="3" placeholder="https://…/san-pham.jpg" /></label>
+          <div class="image-url-previews"><img v-for="url in form.imageUrls.split(/\r?\n/).map(value => value.trim()).filter(value => /^https?:\/\//i.test(value)).slice(0,8)" :key="url" :src="url" alt="Xem trước ảnh sản phẩm" loading="lazy" /></div>
+          <p class="muted-cell">Ảnh đầu tiên là ảnh đại diện. Dùng link ảnh công khai HTTP/HTTPS.</p>
+        </template>
         <template v-else-if="modalKind === 'return'"
           ><label class="form-label"
             >Đơn hàng<select v-model="form.orderId">
@@ -2383,6 +2438,9 @@ function statusClass(status: string) {
               type="number"
               min="1"
               placeholder="Nhập số lượng" /></label
+          ><label class="form-label">Giá nhập / sản phẩm (VND)<input v-model.number="form.unitCost" type="number" min="0" max="9999999999" step="1" required /></label
+          ><div class="receiving-total"><span>Tổng tiền phiếu nhập</span><strong>{{ money((Number(form.quantity) || 0) * (Number(form.unitCost) || 0)) }}</strong></div
+          ><label class="form-label">Ghi chú<input v-model="form.reason" maxlength="500" placeholder="Mã lô, ghi chú nhập hàng…" /></label
           ><label class="form-label"
             >Nhà cung cấp <span class="optional-label">Không bắt buộc</span
             ><input

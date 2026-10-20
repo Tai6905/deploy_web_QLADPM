@@ -81,18 +81,22 @@ class CatalogServiceTest {
     }
 
     @Test
-    void ratingFilterIsRejectedUntilReviewDataExists() {
+    void invalidRatingIsRejected() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> service.listProducts(0, 20, null, null, null, null, 4, null));
+                () -> service.listProducts(0, 20, null, null, null, null, 6, null));
 
-        assertEquals("rating filter requires review data", exception.getMessage());
+        assertEquals("rating must be between 1 and 5", exception.getMessage());
     }
 
     @Test
     void fractionalVndPriceIsRejectedBeforeDatabaseWrite() {
         assertThrows(IllegalArgumentException.class, () -> service.createProduct(new ProductCreateRequest(
                 12L, "MOC-1", "Wood Cup", null, null, new BigDecimal("100.50"))));
+        verify(repository, never()).findCategory(anyLong());
+    }
+    @Test void unsafeImageUrlIsRejectedBeforeAnyDatabaseWrite() {
+        assertThrows(IllegalArgumentException.class, () -> service.createProduct(new ProductCreateRequest(12L,"MOC-1","Cup",null,null,BigDecimal.TEN,null,List.of("javascript:alert(1)"))));
         verify(repository, never()).findCategory(anyLong());
     }
 

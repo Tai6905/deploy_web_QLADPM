@@ -5,6 +5,7 @@ import { canAccessPage, landingPage } from "./auth/permissions";
 import { currentRole, dataSource, restoreSession } from "./auth/session";
 import "./style.css";
 import "./motion.css";
+import "./commerce.css";
 import { installMotion } from "./motion";
 
 const router = createRouter({
@@ -14,6 +15,9 @@ const router = createRouter({
     { path: "/login", component: App },
     { path: "/forbidden", component: App },
     { path: "/customer", component: App },
+    { path: "/about", component: App },
+    { path: "/guide", component: App },
+    { path: "/product/:id(\\d+)", component: App },
     { path: "/profile", component: App },
     { path: "/purchases", component: App },
     {
@@ -32,7 +36,7 @@ router.beforeEach(async (to) => {
     if (currentRole.value) return landingPage(currentRole.value);
     return true;
   }
-  if (page === "forbidden" || page === "customer") return true;
+  if (page === "forbidden" || page === "customer" || page === "about" || page === "guide" || /^product\/\d+$/.test(page)) return true;
   if (!currentRole.value)
     return { path: "/login", query: { redirect: to.fullPath } };
   return canAccessPage(page, currentRole.value) ? true : "/forbidden";

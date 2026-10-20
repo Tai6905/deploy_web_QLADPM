@@ -21,7 +21,7 @@ defineProps<{
   lowStockCount: number;
   categoryOptions: CategoryOption[];
   categoryFilter: string;
-  sortFilter: "newest" | "priceAsc" | "priceDesc";
+  sortFilter: "newest" | "priceAsc" | "priceDesc" | "rating";
   search: string;
   apiProductLoading: boolean;
   apiProductError: string;
@@ -32,7 +32,7 @@ defineProps<{
 const emit = defineEmits<{
   "update:search": [value: string];
   "update:category-filter": [value: string];
-  "update:sort-filter": [value: "newest" | "priceAsc" | "priceDesc"];
+  "update:sort-filter": [value: "newest" | "priceAsc" | "priceDesc" | "rating"];
   "navigate-products": [];
   "navigate-inventory": [];
   "open-categories": [];
@@ -128,7 +128,8 @@ const emit = defineEmits<{
             <th>DANH MỤC</th>
             <th v-if="page === 'products' || dataSource === 'demo'">GIÁ BÁN</th>
             <th>{{ page === "products" ? "TỒN KHO" : "SỐ LƯỢNG CÒN" }}</th>
-            <th>TRẠNG THÁI</th>
+            <th v-if="page === 'receiving'">SỐ LƯỢNG NHẬP</th><th v-if="page === 'receiving'">GIÁ NHẬP</th><th v-if="page === 'receiving'">THÀNH TIỀN</th><th v-if="page === 'receiving'">NHÀ CUNG CẤP / NGÀY</th>
+            <th v-if="page !== 'receiving'">TRẠNG THÁI</th>
             <th v-if="page === 'inventory' && dataSource === 'api'">NGƯỠNG CẢNH BÁO</th>
             <th></th>
           </tr>
@@ -158,7 +159,8 @@ const emit = defineEmits<{
                 >{{ product.stock }} <small>sp</small></span
               >
             </td>
-            <td>
+            <td v-if="page === 'receiving'">{{ product.receivedQuantity }}</td><td v-if="page === 'receiving'">{{ product.unitCost == null ? 'Chưa ghi giá' : money(product.unitCost) }}</td><td v-if="page === 'receiving'"><strong>{{ product.totalCost == null ? '—' : money(product.totalCost) }}</strong></td><td v-if="page === 'receiving'">{{ product.supplierName || '—' }}<small class="account-subtext">{{ product.receivedAt ? new Date(product.receivedAt).toLocaleString('vi-VN') : '' }}</small></td>
+            <td v-if="page !== 'receiving'">
               <span
                 class="status-badge"
                 :class="
@@ -196,7 +198,7 @@ const emit = defineEmits<{
             </td>
           </tr>
           <tr v-if="!apiProductLoading && !filteredProducts.length">
-            <td colspan="7" class="empty-cell">
+            <td :colspan="page === 'receiving' ? 10 : 7" class="empty-cell">
               Không tìm thấy sản phẩm phù hợp.
             </td>
           </tr>

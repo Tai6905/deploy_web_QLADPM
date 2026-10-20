@@ -6,6 +6,17 @@ const { useCart } = loadSource("src/cart.ts");
 const cup = { id: 1, name: "Cup", price: 25000, stock: 4 };
 const bag = { id: 2, name: "Bag", price: 50000, stock: 2 };
 
+test("product detail adds the chosen quantity atomically within available stock", () => {
+  const cart = useCart();
+  assert.equal(cart.add(cup, 3), true);
+  assert.equal(cart.cart.value[1], 3);
+  assert.equal(cart.add(cup, 2), false);
+  assert.equal(cart.cart.value[1], 3);
+  for (const quantity of [0, -1, 1.5, NaN]) assert.equal(cart.add(cup, quantity), false);
+  assert.equal(cart.add(cup, 1), true);
+  assert.equal(cart.cart.value[1], 4);
+});
+
 test("cart keeps products from different catalog pages and searches", () => {
   const cart = useCart();
   cart.add(cup); cart.add(bag);

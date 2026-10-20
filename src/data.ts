@@ -1,4 +1,11 @@
 export type Product = {
+  averageRating?: number;
+  reviewCount?: number;
+  unitCost?: number | null;
+  receivedQuantity?: number;
+  totalCost?: number | null;
+  supplierName?: string | null;
+  receivedAt?: string;
   id: number;
   categoryId?: number;
   variantId?: number;

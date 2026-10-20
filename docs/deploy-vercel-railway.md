@@ -21,6 +21,8 @@ Frontend chạy trên Vercel, backend Spring Boot chạy trên Railway, PostgreS
 
 Không đặt mật khẩu database trong biến `VITE_*`. Không cần tạo database khác hoặc tạo lại bốn tài khoản: chúng đã có trên Aiven. Profile `production` được bật bằng lệnh chạy và dùng cổng `PORT` Railway cấp; nó không tự áp dụng migration lên database hiện có.
 
+Bản nâng cấp Mộc Studio cần migration thứ 10: `enhance_storefront_and_receiving.sql` cho giá nhập, hướng dẫn sử dụng và đánh giá. Áp dụng bằng công cụ schema initializer trước khi deploy backend mới; xem [cách sử dụng và cập nhật storefront](storefront-upgrade.md). Không xóa hoặc tạo lại database.
+
 4. Deploy/redeploy sau khi lưu Variables. Khi trạng thái healthy, vào **Settings → Networking → Generate Domain**. Nếu được hỏi target port, nhập đúng cổng `PORT` của service/log Tomcat.
 5. Mở `https://TEN-BACKEND.up.railway.app/api/auth/session`. Phải trả JSON có `authenticated: false`, không phải lỗi 502. Truy cập `/` trực tiếp có thể nhận 401 vì backend không phục vụ giao diện.
 

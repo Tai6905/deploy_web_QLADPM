@@ -17,7 +17,16 @@ public record ProductDetailResponse(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         List<ProductVariantResponse> productVariants,
-        List<ProductImageResponse> productImages) {
+        List<ProductImageResponse> productImages,
+        String usageInstructions,
+        double averageRating,
+        long reviewCount) {
+
+    public ProductDetailResponse(Long id, Long categoryId, String categoryName, String sku, String name, String slug,
+            String description, long costPrice, long listPrice, OffsetDateTime createdAt, OffsetDateTime updatedAt,
+            List<ProductVariantResponse> variants, List<ProductImageResponse> images) {
+        this(id, categoryId, categoryName, sku, name, slug, description, costPrice, listPrice, createdAt, updatedAt, variants, images, null, 0, 0);
+    }
 
     public record ProductVariantResponse(
             Long id,

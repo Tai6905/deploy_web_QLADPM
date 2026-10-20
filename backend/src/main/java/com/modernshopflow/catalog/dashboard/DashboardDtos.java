@@ -15,7 +15,10 @@ public final class DashboardDtos {
             OffsetDateTime from,
             OffsetDateTime to,
             long paidOrderCount,
-            List<RevenueDay> dailyRevenue) {}
+            List<RevenueDay> dailyRevenue,
+            long purchasingTotal,
+            long inventoryCostEstimate,
+            long unpricedReceiptCount) {}
 
     public record RevenueDay(String date, long revenue) {}
 }

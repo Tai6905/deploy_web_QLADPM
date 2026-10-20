@@ -42,10 +42,18 @@ public class DashboardRepository {
                   ), 0), 0) <= p.low_stock_threshold
                 """,
                 Long.class);
+        Long purchasingTotal = jdbc.queryForObject("SELECT COALESCE(SUM(quantity * unit_cost), 0) FROM receiving_records WHERE created_at >= ? AND created_at < ?", Long.class, from, to);
+        Long unpriced = jdbc.queryForObject("SELECT COUNT(*) FROM receiving_records WHERE unit_cost IS NULL AND created_at >= ? AND created_at < ?", Long.class, from, to);
+        Long inventoryCost = jdbc.queryForObject("SELECT COALESCE(SUM(ii.quantity * p.cost_price), 0) FROM inventory_items ii JOIN product_variants pv ON pv.id=ii.variant_id JOIN products p ON p.id=pv.product_id WHERE p.is_deleted=FALSE AND pv.is_deleted=FALSE", Long.class);
         return new Metrics(totals.revenue(), totals.orderCount(),
-                lowStockCount == null ? 0 : lowStockCount, totals.paidOrderCount(), dailyRevenue);
+                lowStockCount == null ? 0 : lowStockCount, totals.paidOrderCount(), dailyRevenue, purchasingTotal, inventoryCost, unpriced);
     }
 
     private record Totals(long revenue, long orderCount, long paidOrderCount) {}
-    public record Metrics(long revenue, long orderCount, long lowStockCount, long paidOrderCount, List<RevenueDay> dailyRevenue) {}
+    public record Metrics(long revenue, long orderCount, long lowStockCount, long paidOrderCount, List<RevenueDay> dailyRevenue,
+            long purchasingTotal, long inventoryCostEstimate, long unpricedReceiptCount) {
+        public Metrics(long revenue, long orderCount, long lowStockCount, long paidOrderCount, List<RevenueDay> dailyRevenue) {
+            this(revenue, orderCount, lowStockCount, paidOrderCount, dailyRevenue, 0, 0, 0);
+        }
+    }
 }

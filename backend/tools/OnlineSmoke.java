@@ -7,6 +7,8 @@ import com.modernshopflow.catalog.inventory.InventoryDtos.ThresholdRequest;
 import com.modernshopflow.catalog.receiving.ReceivingService;
 import com.modernshopflow.catalog.receiving.ReceivingDtos.ReceivingRequest;
 import com.modernshopflow.catalog.receiving.ReceivingRepository;
+import com.modernshopflow.catalog.reviews.ReviewController;
+import com.modernshopflow.catalog.api.ProductContentRequest;
 import com.modernshopflow.catalog.orders.OrderService;
 import com.modernshopflow.catalog.orders.OrderDtos.*;
 import com.modernshopflow.catalog.payments.PaymentService;
@@ -37,7 +39,7 @@ class OnlineSmoke {
             var jdbc = app.getBean(JdbcTemplate.class);
             List<String> tables = List.of("users", "categories", "products", "product_variants", "inventory_items",
                     "orders", "order_items", "payment_attempts", "stock_holds", "receiving_records",
-                    "stock_movements", "delivery_status_history", "return_requests", "return_request_items");
+                    "stock_movements", "delivery_status_history", "return_requests", "return_request_items", "product_images", "product_reviews");
             var before = tables.stream().map(t -> jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Long.class)).toList();
             var transaction = new TransactionTemplate(app.getBean(PlatformTransactionManager.class));
             transaction.executeWithoutResult(status -> {
@@ -64,10 +66,15 @@ class OnlineSmoke {
                 check(!accountService.updateEmployee(employee.getId(), "Rollback warehouse", null, "WAREHOUSE", false).active(), "employee role update and account locking");
                 var category = catalog.createCategory(new CategoryRequest("Smoke " + tag, "smoke-" + tag, null));
                 var product = catalog.createProduct(new ProductCreateRequest(category.id(), "AUDIT-" + tag,
-                        "Smoke " + tag, null, BigDecimal.ZERO, BigDecimal.valueOf(25000)));
+                        "Smoke " + tag, "Product introduction", BigDecimal.valueOf(10000), BigDecimal.valueOf(25000),
+                        "Wash by hand", List.of("https://example.invalid/one.jpg", "https://example.invalid/two.jpg")));
+                check(product.productImages().size() == 2 && product.usageInstructions().equals("Wash by hand"), "product gallery and usage instructions stored");
+                product = catalog.updateContent(product.id(), new ProductContentRequest("Updated introduction", "Dry after washing", List.of("https://example.invalid/replaced.jpg")));
+                check(product.productImages().size() == 1 && product.usageInstructions().equals("Dry after washing"), "existing product content and gallery replacement");
                 long variant = product.productVariants().getFirst().id();
-                var receipt = receiving.receive(new ReceivingRequest(variant, 10, "Rollback test", null));
+                var receipt = receiving.receive(new ReceivingRequest(variant, 10, "Rollback test", null, BigDecimal.valueOf(15000)));
                 check(receipt.availableStock() == 10, "product creation and stock receiving");
+                check(receipt.unitCost() == 15000 && receipt.totalCost() == 150000 && catalog.getProduct(product.id()).costPrice() == 15000, "receiving unit price, receipt total and latest product cost");
                 check(catalog.listProducts(0, 10, null, product.sku(), null, null, null, null).totalItems() == 1, "catalog search by SKU");
                 var emptyPage = catalog.listProducts(1000, 10, null, product.sku(), null, null, null, null);
                 check(emptyPage.items().isEmpty() && emptyPage.totalItems() == 1, "out-of-range pagination preserves total");
@@ -89,6 +96,14 @@ class OnlineSmoke {
                 deliveries.advance(order.id(), "PREPARING");
                 deliveries.advance(order.id(), "SHIPPED");
                 check(deliveries.advance(order.id(), "DELIVERED").deliveryStatus().equals("DELIVERED"), "full delivery lifecycle from NONE");
+                var reviews = app.getBean(ReviewController.class);
+                check(reviews.eligibility(product.id(), customerAuthentication).canReview(), "delivered buyer is eligible to review");
+                reviews.save(product.id(), customerAuthentication, new ReviewController.ReviewInput(4, "Good product"));
+                reviews.save(product.id(), customerAuthentication, new ReviewController.ReviewInput(5, "Updated review"));
+                check(reviews.list(product.id(), 0, 10).totalItems() == 1 && catalog.getProduct(product.id()).averageRating() == 5,
+                        "review edits preserve one verified review and update rating aggregate");
+                check(catalog.listProducts(0, 10, category.id(), product.sku(), 20000L, 30000L, 5, "rating", true).totalItems() == 1,
+                        "PostgreSQL search combines category, price, rating, sort and availability");
                 var eligible = returns.listReturnableOrders().stream().filter(o -> o.orderId() == order.id()).findFirst().orElseThrow();
                 var request = returns.create(new CreateReturnRequest(order.id(), "Rollback test",
                         List.of(new ReturnItemRequest(eligible.items().getFirst().orderItemId(), 2))));
@@ -99,6 +114,13 @@ class OnlineSmoke {
                         "inventory restored after returned delivery");
                 inventory.updateThreshold(product.id(), new ThresholdRequest(3));
                 check(catalog.getProduct(product.id()).productVariants().getFirst().availableQuantity() == 10, "product detail and inventory threshold update");
+                receiving.receive(new ReceivingRequest(variant, 1, "Rollback second receipt", null, BigDecimal.valueOf(19000)));
+                var original = app.getBean(ReceivingRepository.class).get(receipt.id());
+                check(original.unitCost() == 15000 && original.totalCost() == 150000 && catalog.getProduct(product.id()).costPrice() == 19000,
+                        "later receiving updates current cost without changing historical receipt price");
+                var costs = app.getBean(com.modernshopflow.catalog.dashboard.DashboardService.class).summary("7d");
+                check(costs.purchasingTotal() >= 169000 && costs.inventoryCostEstimate() >= 209000,
+                        "dashboard includes received value and current inventory cost estimate");
             });
             var after = tables.stream().map(t -> jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Long.class)).toList();
             check(before.equals(after), "all business test rows rolled back; existing row counts unchanged");

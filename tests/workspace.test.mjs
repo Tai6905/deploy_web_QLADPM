@@ -46,7 +46,7 @@ test("slower older catalog response cannot overwrite newer search results", asyn
     getProducts: () => new Promise((resolve) => pending.push(resolve)),
     getCategories: async () => ({ items: [] }),
   });
-  const loader = watches.find(([sources]) => Array.isArray(sources) && sources.length === 6)[1];
+  const loader = watches.find(([sources]) => Array.isArray(sources) && sources.length === 10)[1];
   const first = loader(["customer"]); const second = loader(["customer"]);
   const page = (id) => ({ items: [{ id, name: String(id), listPrice: 1, availableQuantity: 1 }], totalPages: 1 });
   pending[1](page(2)); await second;

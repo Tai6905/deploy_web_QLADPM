@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.util.List;
 
 public record ProductCreateRequest(
         @NotNull @Positive Long categoryId,
@@ -14,4 +15,10 @@ public record ProductCreateRequest(
         @NotBlank @Size(max = 255) String name,
         @Size(max = 5000) String description,
         @DecimalMin("0") @Digits(integer = 10, fraction = 0) BigDecimal costPrice,
-        @NotNull @DecimalMin("1") @Digits(integer = 10, fraction = 0) BigDecimal listPrice) {}
+        @NotNull @DecimalMin("1") @Digits(integer = 10, fraction = 0) BigDecimal listPrice,
+        @Size(max = 5000) String usageInstructions,
+        @Size(max = 8) List<@NotBlank @Size(max = 500) String> imageUrls) {
+    public ProductCreateRequest(Long categoryId, String sku, String name, String description, BigDecimal costPrice, BigDecimal listPrice) {
+        this(categoryId, sku, name, description, costPrice, listPrice, null, List.of());
+    }
+}
