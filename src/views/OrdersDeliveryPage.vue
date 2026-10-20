@@ -103,7 +103,7 @@ const emit = defineEmits<{
               <span
                 class="payment-label"
                 :class="{ 'payment-label--paid': order.payment === 'Đã thanh toán' }"
-                >{{ order.payment }}</span
+                >{{ order.paymentMethod === 'COD' && order.payment !== 'Đã thanh toán' ? 'Thu tiền khi nhận hàng' : order.payment }}</span
               >
             </td>
             <td>
@@ -117,11 +117,11 @@ const emit = defineEmits<{
               <button
                 class="button button-small button-outline"
                 :disabled="
-                  order.status === 'Hoàn tất' || order.status === 'Đã hủy' || order.payment !== 'Đã thanh toán'
+                  order.status === 'Hoàn tất' || order.status === 'Đã hủy' || (order.payment !== 'Đã thanh toán' && order.paymentMethod !== 'COD')
                 "
                 @click="emit('advance-order', order)"
               >
-                {{ page === "delivery" ? "Cập nhật" : "Tiếp tục" }}
+                {{ order.paymentMethod === 'COD' && order.deliveryStatus === 'SHIPPED' ? 'Đã giao & thu tiền' : page === "delivery" ? "Cập nhật" : "Tiếp tục" }}
                 <ArrowRight :size="13" />
               </button>
             </td>

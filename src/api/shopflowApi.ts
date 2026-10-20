@@ -9,6 +9,12 @@ export type AccountProfile = {
   role: UserRole; active: boolean; createdAt: string | null;
 };
 export type MyOrderDetail = { order: OrderResponse; delivery: DeliveryOrder; returnableItems: ReturnableOrder["items"]; returns: ApiReturnRequest[] };
+export type PaymentMethod = 'COD' | 'CARD' | 'BANK_TRANSFER';
+export type ShippingAddress = { receiverName: string; phone: string; addressLine: string; district?: string | null; city: string };
+export type SavedAddress = ShippingAddress & { id: number; isDefault: boolean };
+export type CheckoutQuote = { subtotalAmount: number; discountAmount: number; totalAmount: number; voucherCode: string | null };
+export type CheckoutVoucher = { code: string; title: string; minimum: number; type: string; value: number; maximum: number | null };
+export type CheckoutRequest = { shippingAddress: ShippingAddress; contactEmail?: string; paymentMethod: PaymentMethod; items: { productId: number; quantity: number }[]; voucherCode?: string | null; checkoutKey: string; saveAddress: boolean; addressId?: number | null; makeDefault: boolean; expectedTotal: number };
 export type PageQuery = {
   page: number;
   size: number;
@@ -114,6 +120,7 @@ export type CategoryInput = {
   description?: string | null;
 };
 export type OrderSummary = {
+  paymentMethod?: PaymentMethod;
   id: number;
   orderRef: string;
   customer: string;
@@ -155,6 +162,7 @@ export type ReceivingResponse = {
   availableStock: number;
 };
 export type DeliveryOrder = {
+  paymentMethod?: PaymentMethod;
   orderId: number;
   orderStatus: string;
   deliveryStatus: "NONE" | "PREPARING" | "SHIPPED" | "DELIVERED";
@@ -211,6 +219,7 @@ export type CreateOrderRequest = {
   items: Array<{ productId: number; quantity: number }>;
 };
 export type OrderResponse = {
+  subtotalAmount: number; discountAmount: number; voucherCode: string | null;
   id: number;
   orderRef: string;
   status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED";
@@ -268,6 +277,12 @@ function queryString(query: PageQuery) {
 }
 
 export interface ShopflowApi {
+  getAddresses(): Promise<SavedAddress[]>;
+  saveAddress(id: number | null, input: { shippingAddress: ShippingAddress; makeDefault: boolean }): Promise<SavedAddress>;
+  deleteAddress(id: number): Promise<void>;
+  getCheckoutVouchers(): Promise<CheckoutVoucher[]>;
+  quoteCheckout(items: CheckoutRequest['items'], voucherCode?: string | null): Promise<CheckoutQuote>;
+  placeCheckout(input: CheckoutRequest): Promise<OrderResponse>;
   getReviews(productId: number, page?: number): Promise<ApiPage<ProductReview>>;
   getReviewEligibility(productId: number): Promise<ReviewEligibility>;
   saveReview(productId: number, input: { rating: number; comment: string }): Promise<void>;
@@ -314,6 +329,12 @@ export interface ShopflowApi {
 }
 
 export const shopflowApi: ShopflowApi = {
+  getAddresses: () => apiRequest<SavedAddress[]>('/api/account/addresses'),
+  saveAddress: (id, input) => apiRequest<SavedAddress>(`/api/account/addresses${id == null ? '' : '/' + id}`, { method: id == null ? 'POST' : 'PUT', body: JSON.stringify(input) }),
+  deleteAddress: id => apiRequest<void>(`/api/account/addresses/${id}`, { method: 'DELETE' }),
+  getCheckoutVouchers: () => apiRequest<CheckoutVoucher[]>('/api/checkout/vouchers'),
+  quoteCheckout: (items, voucherCode) => apiRequest<CheckoutQuote>('/api/checkout/quote', { method: 'POST', body: JSON.stringify({ items, voucherCode }) }),
+  placeCheckout: input => apiRequest<OrderResponse>('/api/checkout/orders', { method: 'POST', body: JSON.stringify(input) }),
   updateProductContent: (id, input) => apiRequest<ProductDetail>(`/products/${id}/content`, { method: "PUT", body: JSON.stringify(input) }),
   getReviews: (id, page = 0) => apiRequest<ApiPage<ProductReview>>(`/products/${id}/reviews?page=${page}&size=6`),
   getReviewEligibility: (id) => apiRequest<ReviewEligibility>(`/products/${id}/review-eligibility`),

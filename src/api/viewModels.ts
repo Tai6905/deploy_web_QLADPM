@@ -13,7 +13,7 @@ export function toOrderView(order: OrderSummary): Order {
   const status: Order["status"] =
     order.status === "PAYMENT_FAILED"
       ? "Đã hủy"
-      : order.status === "PENDING_PAYMENT"
+      : order.status === "PENDING_PAYMENT" && order.paymentMethod !== 'COD'
         ? "Chờ xác nhận"
         : deliveryStatus === "DELIVERED"
           ? "Hoàn tất"
@@ -24,6 +24,7 @@ export function toOrderView(order: OrderSummary): Order {
     id: `SF-${order.id}`,
     apiId: order.id,
     orderRef: order.orderRef,
+    paymentMethod: order.paymentMethod,
     customer: order.customer,
     date: new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(order.createdAt)),
     total: order.totalAmount,
@@ -87,7 +88,8 @@ export function toDeliveryOrder(delivery: DeliveryOrder): Order {
     date: new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(delivery.createdAt)),
     total: delivery.totalAmount,
     status,
-    payment: "Đã thanh toán",
+    payment: delivery.orderStatus === 'PENDING_PAYMENT' ? 'Chờ thanh toán' : 'Đã thanh toán',
+    paymentMethod: delivery.paymentMethod,
     product: delivery.items.map((item) => item.productName).join(", "),
     quantity: delivery.items.reduce((total, item) => total + item.quantity, 0),
     deliveryStatus,

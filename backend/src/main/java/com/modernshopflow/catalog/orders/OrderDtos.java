@@ -22,7 +22,7 @@ public final class OrderDtos {
 
     public record ShippingAddress(
             @NotBlank @Size(max = 255) String receiverName,
-            @NotBlank @Size(max = 20) String phone,
+            @NotBlank @Size(max = 20) @jakarta.validation.constraints.Pattern(regexp="\\+?[0-9][0-9 .()-]{7,19}",message="Số điện thoại không hợp lệ") String phone,
             @NotBlank @Size(max = 500) String addressLine,
             @Size(max = 100) String district,
             @NotBlank @Size(max = 100) String city) {}
@@ -35,7 +35,13 @@ public final class OrderDtos {
             @NotNull @Valid Customer customer,
             @NotNull @Valid ShippingAddress shippingAddress,
             @NotBlank String paymentMethod,
-            @NotEmpty List<@NotNull @Valid OrderLineRequest> items) {}
+            @NotEmpty @Size(max=100) List<@NotNull @Valid OrderLineRequest> items,
+            @Size(max=50) String voucherCode,
+            UUID checkoutKey) {
+        public CreateOrderRequest(Customer customer, ShippingAddress address, String method, List<OrderLineRequest> items) {
+            this(customer,address,method,items,null,null);
+        }
+    }
 
     public record OrderLineResponse(
             Long productId,
@@ -55,7 +61,8 @@ public final class OrderDtos {
             Customer customer,
             ShippingAddress shippingAddress,
             List<OrderLineResponse> items,
-            OffsetDateTime createdAt) {}
+            OffsetDateTime createdAt,
+            long subtotalAmount, long discountAmount, String voucherCode) {}
 
     public record OrderSummary(
             Long id,
@@ -67,5 +74,6 @@ public final class OrderDtos {
             String status,
             String paymentStatus,
             String deliveryStatus,
-            OffsetDateTime createdAt) {}
+            OffsetDateTime createdAt,
+            String paymentMethod) {}
 }

@@ -70,8 +70,8 @@ public class OrderRepository {
                     """
                     INSERT INTO orders(order_ref, customer_name, customer_email, customer_phone,
                         receiver_name, receiver_phone, address_line, district, city,
-                        payment_method, status, delivery_status, total_amount, customer_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CARD', 'PENDING_PAYMENT', 'NONE', ?, ?)
+                        payment_method, status, delivery_status, total_amount, customer_id,subtotal_amount)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CARD', 'PENDING_PAYMENT', 'NONE', ?, ?, ?)
                     """,
                     new String[] {"id"});
             statement.setObject(1, orderRef);
@@ -85,11 +85,25 @@ public class OrderRepository {
             statement.setString(9, request.shippingAddress().city().trim());
             statement.setBigDecimal(10, BigDecimal.valueOf(total));
             statement.setObject(11, customerId);
+            statement.setBigDecimal(12, BigDecimal.valueOf(total));
             return statement;
         }, keyHolder);
         Number key = keyHolder.getKey();
         if (key == null) throw new IllegalStateException("Database did not return an order id");
         return key.longValue();
+    }
+
+    public void lockCustomer(long id) { jdbc.queryForObject("SELECT id FROM users WHERE id=? FOR UPDATE",Long.class,id); }
+    public java.util.Optional<OrderResponse> checkout(UUID key,long user,String fingerprint) {
+        var rows=jdbc.queryForList("SELECT id,customer_id,checkout_fingerprint FROM orders WHERE checkout_key=?",key);
+        if(rows.isEmpty()) return java.util.Optional.empty();
+        var row=rows.getFirst();
+        if(!java.util.Objects.equals(((Number)row.get("customer_id")).longValue(),user) || !fingerprint.equals(row.get("checkout_fingerprint")))
+            throw new com.modernshopflow.catalog.domain.CatalogConflictException("Yêu cầu này đã tạo đơn với nội dung khác. Vui lòng kiểm tra Đơn mua.");
+        return java.util.Optional.of(findOrder(((Number)row.get("id")).longValue()));
+    }
+    public void checkoutPrice(long id,OrderDtos.CreateOrderRequest request,com.modernshopflow.catalog.checkout.VoucherService.Price price,String fingerprint) {
+        jdbc.update("UPDATE orders SET payment_method=?,subtotal_amount=?,discount_amount=?,total_amount=?,voucher_code=?,checkout_key=?,checkout_fingerprint=? WHERE id=?",request.paymentMethod(),price.subtotalAmount(),price.discountAmount(),price.totalAmount(),price.voucherCode(),request.checkoutKey(),fingerprint,id);
     }
 
     public void insertOrderItem(long orderId, long productId, long variantId,
@@ -116,8 +130,8 @@ public class OrderRepository {
 
     public void insertPaymentAttempt(long orderId, long total) {
         jdbc.update(
-                "INSERT INTO payment_attempts(order_id, method, status, amount) VALUES (?, 'CARD', 'PENDING', ?)",
-                orderId, BigDecimal.valueOf(total));
+                "INSERT INTO payment_attempts(order_id, method, status, amount) SELECT ?, payment_method, 'PENDING', ? FROM orders WHERE id=?",
+                orderId, BigDecimal.valueOf(total),orderId);
     }
 
     public OrderResponse findOrder(long id) {
@@ -153,7 +167,7 @@ public class OrderRepository {
         return jdbc.query(
                 """
                 SELECT o.id, o.order_ref, o.customer_name, o.total_amount, o.status,
-                       o.delivery_status, o.created_at,
+                       o.delivery_status, o.created_at,o.payment_method,
                        COALESCE(pa.status, 'UNPAID') AS payment_status,
                        COALESCE(string_agg(DISTINCT oi.product_name, ', '), '') AS products,
                        COALESCE(SUM(oi.quantity), 0)::INT AS item_quantity
@@ -171,7 +185,7 @@ public class OrderRepository {
                         rs.getString("customer_name"), rs.getString("products"),
                         rs.getInt("item_quantity"), wholeVnd(rs, "total_amount"),
                         rs.getString("status"), rs.getString("payment_status"),
-                        rs.getString("delivery_status"), rs.getObject("created_at", OffsetDateTime.class)),
+                        rs.getString("delivery_status"), rs.getObject("created_at", OffsetDateTime.class),rs.getString("payment_method")),
                 search, search, search, customerId, customerId, size, offset);
     }
 
@@ -188,7 +202,7 @@ public class OrderRepository {
     private static final String ORDER_SQL = """
             SELECT o.id, o.order_ref, o.status, o.delivery_status, o.payment_method,
                    o.total_amount, o.customer_name, o.customer_email, o.customer_phone,
-                   o.receiver_name, o.receiver_phone, o.address_line, o.district, o.city, o.created_at
+                   o.receiver_name, o.receiver_phone, o.address_line, o.district, o.city, o.created_at,COALESCE(o.subtotal_amount,o.total_amount) AS subtotal_amount,o.discount_amount,o.voucher_code
             FROM orders o
             """;
 
@@ -198,7 +212,7 @@ public class OrderRepository {
         return new OrderResponse(
             header.id(), header.orderRef(), header.status(), header.deliveryStatus(), header.paymentMethod(),
             header.totalAmount(), header.customer(), header.shippingAddress(), listOrderLines(header.id()),
-            header.createdAt());
+            header.createdAt(), header.subtotalAmount(),header.discountAmount(),header.voucherCode());
     }
 
         private List<OrderLineResponse> listOrderLines(long orderId) {
@@ -220,7 +234,7 @@ public class OrderRepository {
             new OrderDtos.Customer(rs.getString("customer_name"), rs.getString("customer_email"), rs.getString("customer_phone")),
             new OrderDtos.ShippingAddress(rs.getString("receiver_name"), rs.getString("receiver_phone"),
                 rs.getString("address_line"), rs.getString("district"), rs.getString("city")),
-            rs.getObject("created_at", OffsetDateTime.class));
+            rs.getObject("created_at", OffsetDateTime.class),wholeVnd(rs,"subtotal_amount"),wholeVnd(rs,"discount_amount"),rs.getString("voucher_code"));
         }
 
     private static long wholeVnd(ResultSet rs, String column) throws SQLException {
@@ -236,5 +250,5 @@ public class OrderRepository {
 
     private record OrderHeader(long id, UUID orderRef, String status, String deliveryStatus,
             String paymentMethod, long totalAmount, OrderDtos.Customer customer,
-            OrderDtos.ShippingAddress shippingAddress, OffsetDateTime createdAt) {}
+            OrderDtos.ShippingAddress shippingAddress, OffsetDateTime createdAt,long subtotalAmount,long discountAmount,String voucherCode) {}
 }

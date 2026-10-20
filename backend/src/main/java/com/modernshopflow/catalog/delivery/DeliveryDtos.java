@@ -21,7 +21,7 @@ public final class DeliveryDtos {
             long totalAmount,
             OffsetDateTime createdAt,
             List<DeliveryItem> items,
-            List<DeliveryHistory> history) {}
+            List<DeliveryHistory> history,String paymentMethod) {}
 
     public record UpdateDeliveryRequest(String toStatus) {}
 }

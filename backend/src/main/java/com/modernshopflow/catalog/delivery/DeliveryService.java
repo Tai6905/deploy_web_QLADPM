@@ -31,7 +31,8 @@ public class DeliveryService {
         } catch (EmptyResultDataAccessException exception) {
             throw new CatalogNotFoundException("Order " + orderId + " was not found");
         }
-        if (!"PAID".equals(order.orderStatus())) {
+        boolean cash="COD".equals(order.paymentMethod()) && "PENDING_PAYMENT".equals(order.orderStatus());
+        if (!"PAID".equals(order.orderStatus()) && !cash) {
             throw new CatalogConflictException("Only paid orders can be delivered");
         }
         String expected = switch (order.deliveryStatus()) {
@@ -58,6 +59,7 @@ public class DeliveryService {
                     throw new CatalogConflictException("Inventory changed before delivery could be completed");
                 }
             }
+            if(cash) repository.collectCash(orderId);
         }
 
         repository.updateStatus(orderId, target);

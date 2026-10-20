@@ -1,0 +1,373 @@
+{
+  "dataset": "moc-studio-catalog-v1",
+  "categories": [
+    {
+      "name": "Bình uống hằng ngày",
+      "slug": "moc-binh-uong",
+      "description": "Bình nước cho góc làm việc, đi học và những chuyến đi ngắn. Dữ liệu mẫu phục vụ đồ án."
+    },
+    {
+      "name": "Túi canvas",
+      "slug": "moc-tui-canvas",
+      "description": "Những chiếc túi gọn gàng cho nhịp sống thường ngày. Dữ liệu mẫu phục vụ đồ án."
+    },
+    {
+      "name": "Sổ tay & ghi chép",
+      "slug": "moc-so-tay",
+      "description": "Sổ ghi chép, kế hoạch và những ý tưởng nhỏ. Dữ liệu mẫu phục vụ đồ án."
+    },
+    {
+      "name": "Đèn & góc làm việc",
+      "slug": "moc-den-ban",
+      "description": "Đèn cho bàn học, bàn làm việc và góc đọc sách. Dữ liệu mẫu phục vụ đồ án."
+    },
+    {
+      "name": "Cốc gốm",
+      "slug": "moc-coc-gom",
+      "description": "Cốc uống nước và những khoảng nghỉ nhẹ nhàng. Dữ liệu mẫu phục vụ đồ án."
+    },
+    {
+      "name": "Nến & thư giãn",
+      "slug": "moc-nen-thom",
+      "description": "Nến trang trí cho một góc phòng ấm áp. Dữ liệu mẫu phục vụ đồ án."
+    }
+  ],
+  "products": [
+    {
+      "sku": "MOC-BINH-001",
+      "categorySlug": "moc-binh-uong",
+      "name": "Bình nước Mộc Rừng Xanh 500ml",
+      "costPrice": 175000,
+      "listPrice": 285000,
+      "quantity": 32,
+      "lowStockThreshold": 8,
+      "description": "Dáng bình thon gọn, tông xanh dịu cho bàn học hoặc túi đi làm. Phiên bản 500ml hướng tới nhu cầu mang theo mỗi ngày.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa trước lần dùng đầu bằng nước ấm và dung dịch vệ sinh nhẹ. Rửa bằng tay, để khô cả nắp và thân trước khi cất. Không đặt vào lò vi sóng. Khả năng chịu nhiệt và giữ nhiệt cần đối chiếu nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-BINH-002",
+      "categorySlug": "moc-binh-uong",
+      "name": "Bình nước Mộc Daily 600ml",
+      "costPrice": 190000,
+      "listPrice": 315000,
+      "quantity": 24,
+      "lowStockThreshold": 8,
+      "description": "Một lựa chọn dung tích vừa cho nhịp sống bận rộn. Nắp vặn và dáng tối giản giúp chiếc bình dễ phối cùng những vật dụng quen thuộc.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa trước lần dùng đầu bằng nước ấm và dung dịch vệ sinh nhẹ. Rửa bằng tay, để khô cả nắp và thân trước khi cất. Không đặt vào lò vi sóng. Khả năng chịu nhiệt và giữ nhiệt cần đối chiếu nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-BINH-003",
+      "categorySlug": "moc-binh-uong",
+      "name": "Bình nước Mộc Weekend 750ml",
+      "costPrice": 215000,
+      "listPrice": 359000,
+      "quantity": 18,
+      "lowStockThreshold": 6,
+      "description": "Dành cho buổi học dài, lịch làm việc linh hoạt hoặc chuyến đi ngắn. Thiết kế mẫu lấy cảm hứng từ gam xanh của cây lá.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa trước lần dùng đầu bằng nước ấm và dung dịch vệ sinh nhẹ. Rửa bằng tay, để khô cả nắp và thân trước khi cất. Không đặt vào lò vi sóng. Khả năng chịu nhiệt và giữ nhiệt cần đối chiếu nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-BINH-004",
+      "categorySlug": "moc-binh-uong",
+      "name": "Bình nước Mộc Journey 1L",
+      "costPrice": 265000,
+      "listPrice": 429000,
+      "quantity": 6,
+      "lowStockThreshold": 8,
+      "description": "Dung tích lớn hơn cho người thích chuẩn bị nước từ nhà. Dáng bình sạch và ít chi tiết tạo cảm giác gọn gàng ở bàn làm việc.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa trước lần dùng đầu bằng nước ấm và dung dịch vệ sinh nhẹ. Rửa bằng tay, để khô cả nắp và thân trước khi cất. Không đặt vào lò vi sóng. Khả năng chịu nhiệt và giữ nhiệt cần đối chiếu nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-TUI-001",
+      "categorySlug": "moc-tui-canvas",
+      "name": "Túi canvas Mộc Daily",
+      "costPrice": 95000,
+      "listPrice": 169000,
+      "quantity": 36,
+      "lowStockThreshold": 10,
+      "description": "Chiếc túi dáng đứng với hai quai xách, phù hợp mang sổ tay và những đồ dùng nhỏ. Gam màu trung tính dễ phối cho một ngày thường.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Lấy hết đồ trước khi vệ sinh. Ưu tiên giặt tay nhẹ với nước mát, không dùng chất tẩy mạnh. Phơi nơi thoáng mát và tránh ngâm lâu. Không mang vật nhọn hoặc tải quá nặng so với đường may.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-TUI-002",
+      "categorySlug": "moc-tui-canvas",
+      "name": "Túi canvas Mộc Đi Học",
+      "costPrice": 125000,
+      "listPrice": 219000,
+      "quantity": 28,
+      "lowStockThreshold": 8,
+      "description": "Phiên bản mẫu dành cho lịch học và những buổi làm việc ở quán cà phê. Không gian chứa đồ đơn giản, dễ sắp xếp những món cần mang theo.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Lấy hết đồ trước khi vệ sinh. Ưu tiên giặt tay nhẹ với nước mát, không dùng chất tẩy mạnh. Phơi nơi thoáng mát và tránh ngâm lâu. Không mang vật nhọn hoặc tải quá nặng so với đường may.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-TUI-003",
+      "categorySlug": "moc-tui-canvas",
+      "name": "Túi canvas Mộc Mini",
+      "costPrice": 75000,
+      "listPrice": 139000,
+      "quantity": 20,
+      "lowStockThreshold": 6,
+      "description": "Một chiếc túi gọn cho điện thoại, ví và sổ nhỏ. Thiết kế hướng đến các buổi dạo phố hoặc lúc bạn muốn mang theo ít đồ hơn.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Lấy hết đồ trước khi vệ sinh. Ưu tiên giặt tay nhẹ với nước mát, không dùng chất tẩy mạnh. Phơi nơi thoáng mát và tránh ngâm lâu. Không mang vật nhọn hoặc tải quá nặng so với đường may.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-TUI-004",
+      "categorySlug": "moc-tui-canvas",
+      "name": "Túi canvas Mộc Cuối Tuần",
+      "costPrice": 145000,
+      "listPrice": 249000,
+      "quantity": 14,
+      "lowStockThreshold": 6,
+      "description": "Dáng túi thoáng cho những món đồ cần thiết trong một buổi cuối tuần. Dễ dùng cùng trang phục thường ngày và thuận tiện gấp cất khi không sử dụng.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Lấy hết đồ trước khi vệ sinh. Ưu tiên giặt tay nhẹ với nước mát, không dùng chất tẩy mạnh. Phơi nơi thoáng mát và tránh ngâm lâu. Không mang vật nhọn hoặc tải quá nặng so với đường may.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-SO-001",
+      "categorySlug": "moc-so-tay",
+      "name": "Sổ tay Mộc Ý Tưởng A5",
+      "costPrice": 39000,
+      "listPrice": 79000,
+      "quantity": 48,
+      "lowStockThreshold": 12,
+      "description": "Không gian ghi chép cho ý tưởng bất chợt, nội dung bài học hoặc nhật ký ngắn. Khổ A5 mẫu phù hợp một góc bàn và dễ mang đi.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Bảo quản nơi khô ráo, tránh nước và ánh nắng trực tiếp. Thử mực ở một góc nhỏ trước khi viết cả trang. Đóng sổ sau khi dùng để hạn chế cong mép và bám bụi.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-SO-002",
+      "categorySlug": "moc-so-tay",
+      "name": "Sổ kế hoạch Mộc Tuần Mới",
+      "costPrice": 55000,
+      "listPrice": 109000,
+      "quantity": 36,
+      "lowStockThreshold": 10,
+      "description": "Dùng để tự chia công việc theo ngày, ghi ưu tiên và nhìn lại một tuần. Nội dung trang là dữ liệu minh họa; người dùng có thể tự kẻ bố cục theo thói quen.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Bảo quản nơi khô ráo, tránh nước và ánh nắng trực tiếp. Thử mực ở một góc nhỏ trước khi viết cả trang. Đóng sổ sau khi dùng để hạn chế cong mép và bám bụi.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-SO-003",
+      "categorySlug": "moc-so-tay",
+      "name": "Sổ tay Mộc Bỏ Túi A6",
+      "costPrice": 25000,
+      "listPrice": 49000,
+      "quantity": 40,
+      "lowStockThreshold": 10,
+      "description": "Một cuốn sổ nhỏ để ghi danh sách việc cần làm, địa chỉ hoặc những điều muốn nhớ. Dành cho người thích ghi nhanh bằng tay khi di chuyển.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Bảo quản nơi khô ráo, tránh nước và ánh nắng trực tiếp. Thử mực ở một góc nhỏ trước khi viết cả trang. Đóng sổ sau khi dùng để hạn chế cong mép và bám bụi.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-SO-004",
+      "categorySlug": "moc-so-tay",
+      "name": "Sổ ghi chép Mộc Dòng Chảy A5",
+      "costPrice": 45000,
+      "listPrice": 89000,
+      "quantity": 22,
+      "lowStockThreshold": 8,
+      "description": "Bố cục ghi chép đơn giản cho học tập và công việc hằng ngày. Mẫu sổ phù hợp lập dàn ý, ghi chú cuộc họp hoặc theo dõi một dự án cá nhân.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Bảo quản nơi khô ráo, tránh nước và ánh nắng trực tiếp. Thử mực ở một góc nhỏ trước khi viết cả trang. Đóng sổ sau khi dùng để hạn chế cong mép và bám bụi.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-DEN-001",
+      "categorySlug": "moc-den-ban",
+      "name": "Đèn đọc sách Mộc Lumi Mini",
+      "costPrice": 260000,
+      "listPrice": 429000,
+      "quantity": 16,
+      "lowStockThreshold": 5,
+      "description": "Mẫu đèn dáng gọn dành cho bàn học nhỏ và góc đọc sách. Phần chụp đèn tạo điểm nhấn tối giản, dễ kết hợp cùng sổ tay và cốc gốm.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt đèn trên bề mặt phẳng và khô. Kiểm tra điện áp, công suất bóng và hướng dẫn trên nhãn thiết bị thực tế trước khi dùng. Ngắt điện trước khi lau hoặc thay bóng. Lau bằng khăn mềm, không đổ nước trực tiếp lên đèn.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-DEN-002",
+      "categorySlug": "moc-den-ban",
+      "name": "Đèn bàn Mộc Focus",
+      "costPrice": 325000,
+      "listPrice": 529000,
+      "quantity": 12,
+      "lowStockThreshold": 5,
+      "description": "Một điểm sáng cho khu vực làm việc tập trung. Kiểu dáng mẫu hướng tới không gian ít chi tiết, giúp góc bàn có cảm giác ngăn nắp hơn.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt đèn trên bề mặt phẳng và khô. Kiểm tra điện áp, công suất bóng và hướng dẫn trên nhãn thiết bị thực tế trước khi dùng. Ngắt điện trước khi lau hoặc thay bóng. Lau bằng khăn mềm, không đổ nước trực tiếp lên đèn.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-DEN-003",
+      "categorySlug": "moc-den-ban",
+      "name": "Đèn bàn Mộc Reading",
+      "costPrice": 295000,
+      "listPrice": 489000,
+      "quantity": 8,
+      "lowStockThreshold": 5,
+      "description": "Gợi ý cho góc đọc sách hoặc bàn viết tại nhà. Thông số điện và bóng đèn được chủ shop xác nhận theo thiết bị thực tế trước khi kinh doanh.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt đèn trên bề mặt phẳng và khô. Kiểm tra điện áp, công suất bóng và hướng dẫn trên nhãn thiết bị thực tế trước khi dùng. Ngắt điện trước khi lau hoặc thay bóng. Lau bằng khăn mềm, không đổ nước trực tiếp lên đèn.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-DEN-004",
+      "categorySlug": "moc-den-ban",
+      "name": "Đèn bàn Mộc Studio",
+      "costPrice": 425000,
+      "listPrice": 689000,
+      "quantity": 4,
+      "lowStockThreshold": 5,
+      "description": "Phiên bản mẫu cho góc làm việc cần một món đồ có hình khối rõ ràng. Thiết kế chụp đèn cổ điển tạo cảm giác cân bằng với vật dụng hiện đại.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt đèn trên bề mặt phẳng và khô. Kiểm tra điện áp, công suất bóng và hướng dẫn trên nhãn thiết bị thực tế trước khi dùng. Ngắt điện trước khi lau hoặc thay bóng. Lau bằng khăn mềm, không đổ nước trực tiếp lên đèn.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-COC-001",
+      "categorySlug": "moc-coc-gom",
+      "name": "Cốc gốm Mộc Ban Mai 280ml",
+      "costPrice": 65000,
+      "listPrice": 129000,
+      "quantity": 30,
+      "lowStockThreshold": 8,
+      "description": "Chiếc cốc trắng có quai cho khoảng nghỉ đầu ngày. Dáng tròn đơn giản giúp cốc dễ kết hợp với bàn làm việc, kệ bếp hoặc khay trà.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa bằng tay với miếng bọt biển mềm, để khô trước khi cất. Tránh thay đổi nhiệt độ đột ngột và va đập. Chỉ dùng với máy rửa bát hoặc lò vi sóng khi nhãn sản phẩm thực tế cho phép.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-COC-002",
+      "categorySlug": "moc-coc-gom",
+      "name": "Cốc gốm Mộc An Nhiên 350ml",
+      "costPrice": 85000,
+      "listPrice": 159000,
+      "quantity": 26,
+      "lowStockThreshold": 8,
+      "description": "Dung tích mẫu vừa cho đồ uống yêu thích trong một buổi làm việc. Tông trắng nhẹ làm nổi bật những chi tiết giản dị của góc bàn.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa bằng tay với miếng bọt biển mềm, để khô trước khi cất. Tránh thay đổi nhiệt độ đột ngột và va đập. Chỉ dùng với máy rửa bát hoặc lò vi sóng khi nhãn sản phẩm thực tế cho phép.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-COC-003",
+      "categorySlug": "moc-coc-gom",
+      "name": "Cốc gốm Mộc Chậm 400ml",
+      "costPrice": 95000,
+      "listPrice": 179000,
+      "quantity": 18,
+      "lowStockThreshold": 6,
+      "description": "Một lựa chọn cho những ai thích ly đồ uống lớn hơn và nhịp nghỉ chậm rãi. Kiểu dáng ít họa tiết giữ cảm giác thoáng cho không gian nhỏ.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa bằng tay với miếng bọt biển mềm, để khô trước khi cất. Tránh thay đổi nhiệt độ đột ngột và va đập. Chỉ dùng với máy rửa bát hoặc lò vi sóng khi nhãn sản phẩm thực tế cho phép.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-COC-004",
+      "categorySlug": "moc-coc-gom",
+      "name": "Cốc gốm Mộc Ngày Thường 450ml",
+      "costPrice": 115000,
+      "listPrice": 209000,
+      "quantity": 6,
+      "lowStockThreshold": 8,
+      "description": "Chiếc cốc dáng đầy đặn dành cho những giờ học và làm việc tại nhà. Có thể kết hợp cùng sổ tay hoặc đèn đọc sách để tạo thành một set quà mẫu.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Rửa bằng tay với miếng bọt biển mềm, để khô trước khi cất. Tránh thay đổi nhiệt độ đột ngột và va đập. Chỉ dùng với máy rửa bát hoặc lò vi sóng khi nhãn sản phẩm thực tế cho phép.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-NEN-001",
+      "categorySlug": "moc-nen-thom",
+      "name": "Nến thơm Mộc Gỗ Ấm 120g",
+      "costPrice": 85000,
+      "listPrice": 169000,
+      "quantity": 24,
+      "lowStockThreshold": 6,
+      "description": "Mẫu nến trong ly thủy tinh, ý tưởng mùi hương gỗ ấm dành cho góc nghỉ ngơi. Tên mùi và trọng lượng là thông tin minh họa của bộ sưu tập đồ án.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt nến trên bề mặt phẳng chịu nhiệt, xa vật dễ cháy, trẻ em và vật nuôi. Không để nến cháy khi không có người trông coi. Dập tắt hoàn toàn trước khi rời phòng; chờ nguội trước khi di chuyển. Làm theo thời gian đốt trên nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-NEN-002",
+      "categorySlug": "moc-nen-thom",
+      "name": "Nến thơm Mộc Vườn Sớm 150g",
+      "costPrice": 105000,
+      "listPrice": 199000,
+      "quantity": 20,
+      "lowStockThreshold": 6,
+      "description": "Mẫu nến lấy cảm hứng từ một buổi sáng yên tĩnh trong vườn. Ly nến đơn giản có thể tạo điểm nhấn nhỏ cho kệ sách hoặc bàn bên.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt nến trên bề mặt phẳng chịu nhiệt, xa vật dễ cháy, trẻ em và vật nuôi. Không để nến cháy khi không có người trông coi. Dập tắt hoàn toàn trước khi rời phòng; chờ nguội trước khi di chuyển. Làm theo thời gian đốt trên nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-NEN-003",
+      "categorySlug": "moc-nen-thom",
+      "name": "Nến thơm Mộc Trà Chiều 180g",
+      "costPrice": 125000,
+      "listPrice": 239000,
+      "quantity": 12,
+      "lowStockThreshold": 5,
+      "description": "Ý tưởng bộ sưu tập hương trà cho những khoảng nghỉ cuối ngày. Đây là mẫu sản phẩm để trình bày danh mục và luồng mua sắm, không cam kết tác dụng trị liệu.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt nến trên bề mặt phẳng chịu nhiệt, xa vật dễ cháy, trẻ em và vật nuôi. Không để nến cháy khi không có người trông coi. Dập tắt hoàn toàn trước khi rời phòng; chờ nguội trước khi di chuyển. Làm theo thời gian đốt trên nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&w=1000&q=80"
+      ]
+    },
+    {
+      "sku": "MOC-NEN-004",
+      "categorySlug": "moc-nen-thom",
+      "name": "Nến thơm Mộc Tĩnh 200g",
+      "costPrice": 145000,
+      "listPrice": 279000,
+      "quantity": 5,
+      "lowStockThreshold": 6,
+      "description": "Một ly nến cho góc phòng muốn giữ cảm giác nhẹ nhàng và ấm áp. Phù hợp minh họa lựa chọn quà tặng cùng cốc gốm hoặc sổ tay trong đồ án.\n\nDữ liệu mẫu phục vụ đồ án Mộc Studio. Giá, thông số và ảnh minh họa cần được xác nhận trước khi bán hàng thực tế.",
+      "usageInstructions": "Đặt nến trên bề mặt phẳng chịu nhiệt, xa vật dễ cháy, trẻ em và vật nuôi. Không để nến cháy khi không có người trông coi. Dập tắt hoàn toàn trước khi rời phòng; chờ nguội trước khi di chuyển. Làm theo thời gian đốt trên nhãn sản phẩm thực tế.",
+      "imageUrls": [
+        "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&w=1000&q=80"
+      ]
+    }
+  ]
+}

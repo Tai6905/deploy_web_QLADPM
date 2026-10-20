@@ -90,6 +90,7 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/account/**", "/api/account").authenticated()
+                .requestMatchers("/api/checkout/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/products/*/review-eligibility").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/products/*/reviews").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.PUT, "/products/*/content").hasRole("SHOP_OWNER")

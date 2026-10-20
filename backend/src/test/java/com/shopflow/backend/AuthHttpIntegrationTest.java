@@ -33,6 +33,8 @@ class AuthHttpIntegrationTest {
                 new org.springframework.core.io.ClassPathResource("account-history-schema.sql")).execute(jdbc.getDataSource());
         new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
                 new org.springframework.core.io.ClassPathResource("storefront-schema.sql")).execute(jdbc.getDataSource());
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource("checkout-schema.sql")).execute(jdbc.getDataSource());
     }
     com.shopflow.backend.entity.User user(String role) {
         var result = auth.registerUser(UUID.randomUUID() + "@example.invalid", password, "Regression " + role);
@@ -68,6 +70,76 @@ class AuthHttpIntegrationTest {
     void login(HttpClient client, String email) throws Exception {
         var response = request(client, "/api/auth/login", "POST", "{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}", null);
         assertEquals(200, response.statusCode(), response.body());
+    }
+
+    long checkoutProduct() {
+        String tag=UUID.randomUUID().toString();
+        jdbc.update("INSERT INTO categories(name,slug) VALUES('Checkout',?)",tag);
+        long category=jdbc.queryForObject("SELECT id FROM categories WHERE slug=?",Long.class,tag);
+        jdbc.update("INSERT INTO products(category_id,sku,name,slug,list_price) VALUES(?,?,'Checkout cup',?,25000)",category,tag,tag);
+        long product=jdbc.queryForObject("SELECT id FROM products WHERE sku=?",Long.class,tag);
+        jdbc.update("INSERT INTO product_variants(product_id) VALUES(?)",product);
+        long variant=jdbc.queryForObject("SELECT id FROM product_variants WHERE product_id=?",Long.class,product);
+        jdbc.update("INSERT INTO inventory_items(variant_id,quantity) VALUES(?,10)",variant);
+        return product;
+    }
+    String checkoutVoucher(String type,int value,int maximum,int minimum) {
+        String code="TEST-"+UUID.randomUUID();
+        jdbc.update("INSERT INTO vouchers(code,title,discount_type,discount_value,max_discount_amount,min_order_value,max_usages_total,max_usages_per_user,valid_from,valid_to) VALUES(?,'Test offer',?,?,?,?,10,1,?,?)",code,type,value,maximum,minimum,java.time.OffsetDateTime.now().minusDays(1),java.time.OffsetDateTime.now().plusDays(1));
+        return code;
+    }
+    String checkoutBody(long product,String code,String key,String method,long expected) throws Exception {
+        return json.writeValueAsString(java.util.Map.of("shippingAddress",java.util.Map.of("receiverName","Test receiver","phone","0901234567","addressLine","12 Test street","district","Test district","city","Test city"),"paymentMethod",method,"items",java.util.List.of(java.util.Map.of("productId",product,"quantity",2)),"voucherCode",code,"checkoutKey",key,"saveAddress",true,"makeDefault",true,"expectedTotal",expected));
+    }
+    @Test void savedAddressesArePrivateAndHaveOneDefault() throws Exception {
+        var first=user("CUSTOMER");var second=user("CUSTOMER");var a=client();var b=client();login(a,first.getEmail());login(b,second.getEmail());
+        String input="{\"shippingAddress\":{\"receiverName\":\"Receiver\",\"phone\":\"0901234567\",\"addressLine\":\"12 Test street\",\"city\":\"Test city\"},\"makeDefault\":true}";
+        var added=request(a,"/api/account/addresses","POST",input,csrf(a));assertEquals(200,added.statusCode(),added.body());
+        long id=json.readTree(added.body()).get("id").asLong();
+        assertEquals("[]",request(b,"/api/account/addresses","GET",null,null).body());
+        assertEquals(404,request(b,"/api/account/addresses/"+id,"PUT",input,csrf(b)).statusCode());
+        assertEquals(404,request(b,"/api/account/addresses/"+id,"DELETE",null,csrf(b)).statusCode());
+        var newer=request(a,"/api/account/addresses","POST",input.replace("12 Test street","34 Other street"),csrf(a));assertEquals(200,newer.statusCode());
+        long next=json.readTree(newer.body()).get("id").asLong();
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM user_addresses WHERE user_id=? AND is_default=TRUE",Integer.class,first.getId()));
+        assertEquals(200,request(a,"/api/account/addresses/"+next,"DELETE",null,csrf(a)).statusCode());
+        assertTrue(jdbc.queryForObject("SELECT is_default FROM user_addresses WHERE id=?",Boolean.class,id));
+    }
+    @Test void checkoutValidatesVoucherPreventsDuplicatesAndCollectsCodOnlyAtDelivery() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct();String voucher=checkoutVoucher("PERCENTAGE",10,3000,40000),key=UUID.randomUUID().toString();
+        String quote=json.writeValueAsString(java.util.Map.of("items",java.util.List.of(java.util.Map.of("productId",product,"quantity",2)),"voucherCode",voucher));
+        var price=request(browser,"/api/checkout/quote","POST",quote,csrf(browser));assertEquals(200,price.statusCode(),price.body());assertTrue(price.body().contains("\"totalAmount\":47000"));
+        assertEquals(409,request(browser,"/api/checkout/orders","POST",checkoutBody(product,voucher,key,"COD",1),csrf(browser)).statusCode());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM orders WHERE checkout_key=?",Integer.class,UUID.fromString(key)));
+        String body=checkoutBody(product,voucher,key,"COD",47000);
+        var placed=request(browser,"/api/checkout/orders","POST",body,csrf(browser));assertEquals(200,placed.statusCode(),placed.body());
+        var result=json.readTree(placed.body());long order=result.get("id").asLong();String reference=result.get("orderRef").asText();
+        assertEquals("PENDING_PAYMENT",result.get("status").asText());
+        assertEquals(placed.body(),request(browser,"/api/checkout/orders","POST",body,csrf(browser)).body());
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM user_addresses WHERE user_id=?",Integer.class,customer.getId()));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM voucher_usages WHERE order_id=?",Integer.class,order));
+        assertEquals(2,jdbc.queryForObject("SELECT reserved_quantity FROM inventory_items WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id=?)",Integer.class,product));
+        assertEquals(409,request(browser,"/orders/"+reference+"/payments","POST","{\"result\":\"SUCCESS\"}",csrf(browser)).statusCode());
+        assertEquals(409,request(browser,"/api/checkout/orders","POST",body.replace("12 Test street","Different address"),csrf(browser)).statusCode());
+        assertEquals(400,request(browser,"/api/checkout/orders","POST",checkoutBody(product,voucher,UUID.randomUUID().toString(),"COD",47000),csrf(browser)).statusCode());
+        var warehouse=user("WAREHOUSE");var staff=client();login(staff,warehouse.getEmail());
+        for(String state:java.util.List.of("PREPARING","SHIPPED","DELIVERED")) {var delivery=request(staff,"/orders/"+order+"/delivery","PATCH","{\"toStatus\":\""+state+"\"}",csrf(staff));assertEquals(200,delivery.statusCode(),delivery.body());}
+        assertEquals("PAID",jdbc.queryForObject("SELECT status FROM orders WHERE id=?",String.class,order));
+        assertEquals("SUCCESS",jdbc.queryForObject("SELECT status FROM payment_attempts WHERE order_id=?",String.class,order));
+        assertEquals(8,jdbc.queryForObject("SELECT quantity FROM inventory_items WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id=?)",Integer.class,product));
+        assertEquals(409,request(staff,"/orders/"+order+"/delivery","PATCH","{\"toStatus\":\"DELIVERED\"}",csrf(staff)).statusCode());
+    }
+    @Test void failedTransferReleasesVoucherButKeepsOrderDiscountSnapshot() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct();String voucher=checkoutVoucher("FIXED_AMOUNT",1000,1000,0);
+        var placed=request(browser,"/api/checkout/orders","POST",checkoutBody(product,voucher,UUID.randomUUID().toString(),"BANK_TRANSFER",49000),csrf(browser));assertEquals(200,placed.statusCode(),placed.body());
+        var result=json.readTree(placed.body());long order=result.get("id").asLong();
+        var failed=request(browser,"/orders/"+result.get("orderRef").asText()+"/payments","POST","{\"result\":\"FAILED\",\"failureReason\":\"Simulation failed\"}",csrf(browser));assertEquals(200,failed.statusCode(),failed.body());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM voucher_usages WHERE order_id=?",Integer.class,order));
+        assertEquals(0,jdbc.queryForObject("SELECT current_usage_count FROM vouchers WHERE code=?",Integer.class,voucher));
+        assertEquals(1000,jdbc.queryForObject("SELECT discount_amount FROM orders WHERE id=?",Integer.class,order));
+        assertEquals(200,request(browser,"/api/checkout/orders","POST",checkoutBody(product,voucher,UUID.randomUUID().toString(),"CARD",49000),csrf(browser)).statusCode());
     }
     @Test void registrationLoginSessionAndRawCsrfLogout() throws Exception {
         var client = client();

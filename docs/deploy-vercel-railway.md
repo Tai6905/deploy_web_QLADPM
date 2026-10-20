@@ -23,6 +23,8 @@ Không đặt mật khẩu database trong biến `VITE_*`. Không cần tạo da
 
 Bản nâng cấp Mộc Studio cần migration thứ 10: `enhance_storefront_and_receiving.sql` cho giá nhập, hướng dẫn sử dụng và đánh giá. Áp dụng bằng công cụ schema initializer trước khi deploy backend mới; xem [cách sử dụng và cập nhật storefront](storefront-upgrade.md). Không xóa hoặc tạo lại database.
 
+Trang thanh toán riêng cần thêm migration thứ 11: `add_checkout_addresses_and_vouchers.sql`. Xem [hướng dẫn checkout](checkout.md) cho địa chỉ lưu theo tài khoản, voucher, COD và phương thức thanh toán mô phỏng. Deploy cả backend và frontend của bản checkout sau khi schema đã sẵn sàng.
+
 4. Deploy/redeploy sau khi lưu Variables. Khi trạng thái healthy, vào **Settings → Networking → Generate Domain**. Nếu được hỏi target port, nhập đúng cổng `PORT` của service/log Tomcat.
 5. Mở `https://TEN-BACKEND.up.railway.app/api/auth/session`. Phải trả JSON có `authenticated: false`, không phải lỗi 502. Truy cập `/` trực tiếp có thể nhận 401 vì backend không phục vụ giao diện.
 

@@ -30,7 +30,8 @@ public class DatabaseSchemaInitializer implements ApplicationRunner {
             "create_delivery_status_history.sql",
             "create_receiving_records_and_stock_movements.sql",
             "create_customer_returns.sql",
-            "enhance_storefront_and_receiving.sql");
+            "enhance_storefront_and_receiving.sql",
+            "add_checkout_addresses_and_vouchers.sql");
 
     private final DataSource dataSource;
 

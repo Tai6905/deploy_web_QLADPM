@@ -29,6 +29,15 @@ test("paid orders can advance from NONE to PREPARING", async () => {
   await app.advanceOrder({ apiId: 1, deliveryStatus: "NONE", payment: "Đã thanh toán" });
   assert.deepEqual(calls, ["PREPARING"]);
 });
+
+test("unpaid COD orders can enter preparation while unpaid card orders cannot", async () => {
+  const calls=[];
+  const {app}=workspace({updateDelivery:async(id,status)=>{calls.push(status);return {orderId:id,orderStatus:'PENDING_PAYMENT',paymentMethod:'COD',deliveryStatus:status,createdAt:new Date().toISOString(),items:[]};}});
+  await app.advanceOrder({apiId:1,deliveryStatus:'NONE',payment:'Chờ thanh toán',paymentMethod:'CARD'});
+  assert.equal(calls.length,0);
+  await app.advanceOrder({apiId:1,deliveryStatus:'NONE',payment:'Chờ thanh toán',paymentMethod:'COD'});
+  assert.deepEqual(calls,['PREPARING']);
+});
 test("warehouse returns load without calling owner-only eligible orders", async () => {
   let ownerApiCalled = false;
   const { app, watches } = workspace({

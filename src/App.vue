@@ -75,6 +75,7 @@ import AnimatedNumber from "./components/AnimatedNumber.vue";
 import ProductPage from "./views/ProductPage.vue";
 import StoreInfoPage from "./views/StoreInfoPage.vue";
 import ProductImage from "./components/ProductImage.vue";
+import CheckoutPage from "./views/CheckoutPage.vue";
 import {
   toDeliveryOrder,
   toInventoryProduct,
@@ -83,7 +84,7 @@ import {
   toReturnView,
 } from "./api/viewModels";
 
-type ModalKind = "order" | "product" | "stock" | "return" | "checkout" | null;
+type ModalKind = "order" | "product" | "stock" | "return" | null;
 
 const route = useRoute();
 const router = useRouter();
@@ -94,6 +95,7 @@ const page = computed(() =>
   route.path === "/forbidden" ||
   route.path === "/profile" ||
   route.path === "/purchases" ||
+  route.path === "/checkout" ||
   route.path === "/customer"
     ? route.path.slice(1)
     : String(route.params.page || "overview"),
@@ -497,7 +499,7 @@ watch(
   [page, workspacePage, workspaceSize, workspaceSearch],
   async ([activePage]) => {
     const loadId = ++workspaceLoadId;
-    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide"].includes(activePage)) {
+    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide", "checkout"].includes(activePage)) {
       apiWorkspaceLoading.value = false;
       return;
     }
@@ -629,10 +631,10 @@ function notify(message: string) {
   }, 2800);
 }
 
-function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
-  if (kind === "checkout" && dataSource === "api" && !currentUser.value) {
-    notify("Đăng nhập để đặt hàng và lưu lịch sử mua hàng.");
-    void router.push({ path: "/login", query: { redirect: "/customer" } });
+function openModal(kind: Exclude<ModalKind, null> | "checkout", productId?: number) {
+  if(kind === 'checkout') {
+    if(!cartItems.value.length) { notify('Giỏ hàng đang trống.'); return; }
+    void router.push(dataSource === 'api' && !currentUser.value ? { path: '/login', query: { redirect: '/checkout' } } : '/checkout');
     return;
   }
   modalKind.value = kind;
@@ -651,23 +653,17 @@ function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
     categoryId: apiCategories.value[0]?.id ?? 0,
     price: 0,
     quantity: 1,
-    customer: kind === "checkout" ? currentUser.value?.displayName || "" : "",
+    customer: "",
     supplier: "",
     orderId: orders.value[0]?.id ?? "",
     reason: "",
     phone: "",
-    email: kind === "checkout" ? currentUser.value?.username || "" : "",
+    email: "",
     addressLine: "",
     district: "",
     city: "",
   });
   mobileMenuOpen.value = false;
-  if (kind === "checkout" && dataSource === "api" && currentUser.value) {
-    const accountId = currentUser.value.userId;
-    void shopflowApi.getProfile().then(profile => {
-      if (modalKind.value === "checkout" && currentUser.value?.userId === accountId && !form.phone) form.phone = profile.phone || "";
-    }).catch(() => { /* Checkout can still use manually entered contact details. */ });
-  }
 }
 
 async function openProductModal() {
@@ -753,46 +749,6 @@ function openProductDetail(id: number) {
 
 async function submitModal() {
   formError.value = "";
-  if (modalKind.value === "checkout") {
-    if (
-      !form.customer.trim() ||
-      !form.phone.trim() ||
-      !form.addressLine.trim() ||
-      !form.city.trim() ||
-      !cartItems.value.length
-    ) {
-      formError.value =
-        "Vui lòng nhập thông tin nhận hàng và thêm sản phẩm vào giỏ.";
-      return;
-    }
-    if (dataSource === "api") {
-      await createApiOrder(true);
-      return;
-    }
-    const totalQuantity = cartItems.value.reduce(
-      (sum, item) => sum + item.quantity,
-      0,
-    );
-    const productNames = cartItems.value
-      .map(({ product }) => product.name)
-      .join(", ");
-    for (const { product, quantity } of cartItems.value)
-      product.stock -= quantity;
-    orders.value.unshift({
-      id: `SF-${String(Date.now()).slice(-4)}`,
-      customer: form.customer.trim(),
-      date: "Vừa xong",
-      total: cartTotal.value,
-      status: "Chờ xác nhận",
-      payment: "Chờ thanh toán",
-      product: productNames,
-      quantity: totalQuantity,
-    });
-    clearCart();
-    closeModal();
-    notify("Đã tạo đơn hàng demo");
-    return;
-  }
   if (modalKind.value === "order") {
     if (dataSource === "api") {
       if (
@@ -804,7 +760,7 @@ async function submitModal() {
         formError.value = "Nhập tên, số điện thoại và địa chỉ giao hàng.";
         return;
       }
-      await createApiOrder(false);
+      await createApiOrder();
       return;
     }
     const product = products.value.find(
@@ -1010,18 +966,9 @@ async function submitModal() {
   );
 }
 
-async function createApiOrder(isCheckout: boolean) {
-  const items = isCheckout
-    ? cartItems.value.map(({ product, quantity }) => ({
-        productId: product.id,
-        quantity,
-      }))
-    : (() => {
-        const product = apiOrderProducts.value.find(
-          (item) => item.id === selectedProductId.value,
-        );
-        return product ? [{ productId: product.id, quantity: form.quantity }] : [];
-      })();
+async function createApiOrder() {
+  const product = apiOrderProducts.value.find(item => item.id === selectedProductId.value);
+  const items = product ? [{ productId: product.id, quantity: form.quantity }] : [];
   if (!items.length || items.some((item) => item.quantity < 1)) {
     formError.value = "Chọn sản phẩm và nhập số lượng hợp lệ.";
     return;
@@ -1056,7 +1003,6 @@ async function createApiOrder(isCheckout: boolean) {
       items,
     });
     orderRef = created.orderRef;
-    if (isCheckout) clearCart();
 
     const payment = await shopflowApi.simulatePayment(orderRef, "SUCCESS");
     if (page.value === "orders" && canPerform("manageOrders", currentRole.value)) {
@@ -1108,7 +1054,7 @@ async function createApiOrder(isCheckout: boolean) {
 
 async function advanceOrder(order: Order) {
   if (dataSource === "api") {
-    if (!order.apiId || !order.deliveryStatus || order.payment !== "Đã thanh toán")
+    if (!order.apiId || !order.deliveryStatus || (order.payment !== "Đã thanh toán" && order.paymentMethod !== 'COD'))
       return;
     const nextStatus =
       order.deliveryStatus === "NONE"
@@ -1370,6 +1316,7 @@ function statusClass(status: string) {
 
 <template>
   <LoginPage v-if="page === 'login'" />
+  <CheckoutPage v-else-if="page === 'checkout'" :cart-items="cartItems" :cart-total="cartTotal" @clear-cart="clearCart" @refresh-products="refreshCart" />
   <ProductPage v-else-if="page === 'product'" :product-id="Number(route.params.id)" :cart-quantity="cart[Number(route.params.id)] || 0" @add="addToCart" />
   <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :section="page" />
   <AccountPage v-else-if="page === 'profile' || page === 'purchases'" :tab="page" @logout="logout" @password-changed="passwordChanged" />
@@ -1581,7 +1528,7 @@ function statusClass(status: string) {
           Tiến hành đặt hàng <ArrowRight :size="16" />
         </button>
         <p class="store-checkout-note">
-          Thanh toán mô phỏng bằng thẻ · Giá đã gồm VAT
+          Chọn địa chỉ, voucher và phương thức ở trang thanh toán.
         </p>
       </aside>
     </div>
@@ -1595,40 +1542,6 @@ function statusClass(status: string) {
       :product="productDetail"
       @close="productDetailId = null"
     />
-    </Transition>
-    <Transition name="dialog">
-    <div
-      v-if="modalKind === 'checkout'"
-      class="modal-backdrop"
-      @click.self="closeModal"
-      @keydown.esc="closeModal"
-    >
-      <form class="modal" @submit.prevent="submitModal">
-        <div class="modal-heading">
-          <div>
-            <span class="modal-kicker">MỘC STUDIO · THANH TOÁN</span>
-            <h2>Thông tin nhận hàng</h2>
-            <p>Đơn hàng sẽ được tạo với thanh toán mô phỏng bằng thẻ.</p>
-          </div>
-          <button type="button" class="icon-button" aria-label="Đóng" @click="closeModal"><X :size="19" /></button>
-        </div>
-        <label class="form-label">Họ và tên<input v-model="form.customer" autofocus autocomplete="name" placeholder="Tên người nhận" /></label>
-        <div class="form-row">
-          <label class="form-label">Số điện thoại<input v-model="form.phone" autocomplete="tel" placeholder="09xxxxxxxx" /></label>
-          <label class="form-label">Email <span class="optional-label">Tùy chọn</span><input v-model="form.email" autocomplete="email" type="email" placeholder="ban@email.com" /></label>
-        </div>
-        <label class="form-label">Địa chỉ giao hàng<input v-model="form.addressLine" autocomplete="street-address" placeholder="Số nhà, tên đường" /></label>
-        <div class="form-row">
-          <label class="form-label">Quận / huyện <span class="optional-label">Tùy chọn</span><input v-model="form.district" placeholder="Quận, huyện" /></label>
-          <label class="form-label">Tỉnh / thành phố<input v-model="form.city" autocomplete="address-level1" placeholder="Thành phố" /></label>
-        </div>
-        <p v-if="formError" class="form-error">{{ formError }}</p>
-        <div class="modal-actions">
-          <button type="button" class="button button-outline" @click="closeModal">Hủy</button>
-          <button type="submit" class="button button-primary"><Check :size="16" />Đặt hàng · {{ money(cartTotal) }}</button>
-        </div>
-      </form>
-    </div>
     </Transition>
     <Transition name="toast"><div v-if="toast" :key="toast" class="toast-message" role="status"><span><Check :size="16" /></span>{{ toast }}</div></Transition>
   </main>
@@ -2264,9 +2177,7 @@ function statusClass(status: string) {
                     ? "Thêm sản phẩm"
                     : modalKind === "return"
                       ? "Tạo yêu cầu đổi trả"
-                      : modalKind === "checkout"
-                        ? "Thông tin nhận hàng"
-                        : "Nhập hàng vào kho"
+                      : "Nhập hàng vào kho"
               }}
             </h2>
             <p>
@@ -2275,9 +2186,7 @@ function statusClass(status: string) {
                   ? "Tạo đơn và cập nhật tồn kho tự động."
                   : modalKind === "product"
                     ? "Thêm mặt hàng mới vào danh mục cửa hàng."
-                    : modalKind === "checkout"
-                      ? "Đơn hàng sẽ được tạo với thanh toán mô phỏng bằng thẻ."
-                      : modalKind === "return"
+                    : modalKind === "return"
                         ? "Chọn đơn hàng và mô tả lý do cần xử lý."
                         : "Ghi nhận số lượng hàng mới nhận được."
               }}
@@ -2292,19 +2201,7 @@ function statusClass(status: string) {
             <X :size="19" />
           </button>
         </div>
-        <template v-if="modalKind === 'checkout'">
-          <label class="form-label">Họ và tên<input v-model="form.customer" autofocus autocomplete="name" placeholder="Tên người nhận" /></label>
-          <div class="form-row">
-            <label class="form-label">Số điện thoại<input v-model="form.phone" autocomplete="tel" placeholder="09xxxxxxxx" /></label>
-            <label class="form-label">Email <span class="optional-label">Tùy chọn</span><input v-model="form.email" autocomplete="email" type="email" placeholder="ban@email.com" /></label>
-          </div>
-          <label class="form-label">Địa chỉ giao hàng<input v-model="form.addressLine" autocomplete="street-address" placeholder="Số nhà, tên đường" /></label>
-          <div class="form-row">
-            <label class="form-label">Quận / huyện <span class="optional-label">Tùy chọn</span><input v-model="form.district" placeholder="Quận, huyện" /></label>
-            <label class="form-label">Tỉnh / thành phố<input v-model="form.city" autocomplete="address-level1" placeholder="Thành phố" /></label>
-          </div>
-        </template>
-        <template v-else-if="modalKind === 'order'"
+        <template v-if="modalKind === 'order'"
           ><label class="form-label"
             >Tên khách hàng<input
               v-model="form.customer"
@@ -2477,8 +2374,6 @@ function statusClass(status: string) {
                   ? "Lưu sản phẩm"
                   : modalKind === "return"
                     ? "Gửi yêu cầu"
-                    : modalKind === "checkout"
-                      ? "Đặt hàng"
                     : "Xác nhận nhập"
             }}
           </button>

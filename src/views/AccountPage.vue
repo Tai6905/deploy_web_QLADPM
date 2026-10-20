@@ -165,7 +165,9 @@ async function pay() {
           <ul v-if="detail.delivery.history.length" class="tracking-history"><li v-for="(event, index) in detail.delivery.history" :key="index"><strong>{{ deliveryLabels[event.toStatus] }}</strong><span>{{ date(event.changedAt) }}</span></li></ul>
           <p v-else class="muted-cell">Chưa có cập nhật giao hàng.</p>
           <template v-if="detail.returns.length"><h3>Theo dõi đổi trả</h3><ul class="tracking-history"><li v-for="request in detail.returns" :key="request.id"><span><strong>RT-{{ request.id }} · {{ returnLabels[request.status] }}</strong><small class="account-subtext">{{ request.reason }}</small></span><span>{{ date(request.updatedAt) }}</span></li></ul></template>
-          <button v-if="detail.order.status === 'PENDING_PAYMENT'" class="button button-primary" :disabled="paymentBusy" @click="pay">Thanh toán thử nghiệm</button>
+          <p v-if="detail.order.paymentMethod === 'COD' && detail.order.status !== 'PAID'" class="form-success">Thanh toán {{ money(detail.order.totalAmount) }} khi nhận hàng.</p>
+          <p v-if="detail.order.discountAmount" class="muted-cell">Tạm tính {{ money(detail.order.subtotalAmount) }} · Ưu đãi {{ detail.order.voucherCode }}: −{{ money(detail.order.discountAmount) }}</p>
+          <button v-if="detail.order.status === 'PENDING_PAYMENT' && detail.order.paymentMethod !== 'COD'" class="button button-primary" :disabled="paymentBusy" @click="pay">Thanh toán thử nghiệm</button>
           <form v-if="detail.order.status === 'PAID' && detail.order.deliveryStatus === 'DELIVERED' && detail.returnableItems.some(item => item.returnableQuantity > 0)" class="auth-form return-request-form" @submit.prevent="requestReturn">
             <h3>Yêu cầu đổi trả</h3>
             <label v-for="item in detail.returnableItems.filter(item => item.returnableQuantity > 0)" :key="item.orderItemId" class="form-label">{{ item.productName }} (có thể trả {{ item.returnableQuantity }})<input v-model.number="returnQuantities[item.orderItemId]" type="number" min="0" :max="item.returnableQuantity" step="1" /></label>

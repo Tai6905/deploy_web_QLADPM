@@ -17,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PaymentService {
     private final PaymentRepository repository;
+    private final com.modernshopflow.catalog.checkout.VoucherService vouchers;
 
-    public PaymentService(PaymentRepository repository) {
+    public PaymentService(PaymentRepository repository,com.modernshopflow.catalog.checkout.VoucherService vouchers) {
         this.repository = repository;
+        this.vouchers=vouchers;
     }
 
     @Transactional
@@ -45,6 +47,7 @@ public class PaymentService {
         } catch (EmptyResultDataAccessException exception) {
             throw new CatalogNotFoundException("Payment attempt was not found");
         }
+        if("COD".equals(attempt.method())) throw new CatalogConflictException("COD chỉ được thu tiền khi xác nhận giao hàng.");
         if (!"PENDING_PAYMENT".equals(order.status()) || !"PENDING".equals(attempt.status())) {
             throw new CatalogConflictException("Order is not awaiting payment");
         }
@@ -56,6 +59,7 @@ public class PaymentService {
             repository.releaseHolds(holds, order.id(), "Checkout stock hold expired");
             repository.updatePayment(attempt.id(), "EXPIRED", "Checkout stock hold expired");
             repository.updateOrderStatus(order.id(), "PAYMENT_FAILED");
+            vouchers.release(order.id());
             return repository.getPayment(attempt.id());
         }
 
@@ -67,6 +71,7 @@ public class PaymentService {
             repository.releaseHolds(holds, order.id(), request.failureReason().trim());
             repository.updatePayment(attempt.id(), result, request.failureReason().trim());
             repository.updateOrderStatus(order.id(), "PAYMENT_FAILED");
+            vouchers.release(order.id());
         }
         return repository.getPayment(attempt.id());
     }

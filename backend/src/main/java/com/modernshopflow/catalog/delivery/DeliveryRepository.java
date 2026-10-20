@@ -21,21 +21,27 @@ public class DeliveryRepository {
     }
 
     public List<Long> listPaidOrderIds() {
-        return jdbc.queryForList("SELECT id FROM orders WHERE status = 'PAID' ORDER BY created_at, id", Long.class);
+        return jdbc.queryForList("SELECT id FROM orders WHERE status = 'PAID' OR (status='PENDING_PAYMENT' AND payment_method='COD') ORDER BY created_at, id", Long.class);
     }
 
     public LockedDelivery lockOrder(long orderId) {
         return jdbc.queryForObject(
-                "SELECT id, status, delivery_status FROM orders WHERE id = ? FOR UPDATE",
-                (rs, row) -> new LockedDelivery(rs.getLong("id"), rs.getString("status"), rs.getString("delivery_status")),
+                "SELECT id, status, delivery_status,payment_method FROM orders WHERE id = ? FOR UPDATE",
+                (rs, row) -> new LockedDelivery(rs.getLong("id"), rs.getString("status"), rs.getString("delivery_status"),rs.getString("payment_method")),
                 orderId);
     }
 
     public DeliveryOrder get(long orderId) {
         return jdbc.queryForObject(
-                "SELECT id, status, delivery_status, receiver_name, city, total_amount, created_at FROM orders WHERE id = ?",
+                "SELECT id, status, delivery_status, receiver_name, city, total_amount, created_at,payment_method FROM orders WHERE id = ?",
                 (rs, row) -> mapOrder(rs),
                 orderId);
+    }
+
+    public void collectCash(long orderId) {
+        if(jdbc.update("UPDATE payment_attempts SET status='SUCCESS',paid_at=CURRENT_TIMESTAMP WHERE order_id=? AND method='COD' AND status='PENDING'",orderId)!=1)
+            throw new com.modernshopflow.catalog.domain.CatalogConflictException("Trạng thái thu tiền COD không hợp lệ.");
+        jdbc.update("UPDATE orders SET status='PAID',updated_at=CURRENT_TIMESTAMP WHERE id=?",orderId);
     }
 
     public void updateStatus(long orderId, String status) {
@@ -91,10 +97,10 @@ public class DeliveryRepository {
                 orderId);
         return new DeliveryOrder(orderId, rs.getString("status"), rs.getString("delivery_status"),
                 rs.getString("receiver_name"), rs.getString("city"), amount.longValueExact(),
-                rs.getObject("created_at", OffsetDateTime.class), items, history);
+                rs.getObject("created_at", OffsetDateTime.class), items, history,rs.getString("payment_method"));
     }
 
-    public record LockedDelivery(long id, String orderStatus, String deliveryStatus) {}
+    public record LockedDelivery(long id, String orderStatus, String deliveryStatus,String paymentMethod) {}
     public record OrderVariant(long variantId, int quantity) {}
     public record LockedStock(long inventoryId, int quantity, int reservedQuantity) {}
 }

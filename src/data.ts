@@ -20,6 +20,7 @@ export type Product = {
 };
 
 export type Order = {
+  paymentMethod?: string;
   id: string;
   apiId?: number;
   orderRef?: string;
