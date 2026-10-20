@@ -142,6 +142,11 @@ const productDetail = computed(
 );
 const { cart, cartItems, cartTotal, add: addCartItem, adjust: adjustCart, refresh: refreshCart, clear: clearCart } =
   useCart(localStorage, `shopflow.${dataSource}.cart.v1`);
+const checkoutDestination = computed(() =>
+  dataSource === 'api' && !currentUser.value
+    ? { path: '/login', query: { redirect: '/checkout' } }
+    : { path: '/checkout' },
+);
 const products = ref<Product[]>(
   dataSource === "demo" ? readStore("shopflow.products", seedProducts) : [],
 );
@@ -631,12 +636,7 @@ function notify(message: string) {
   }, 2800);
 }
 
-function openModal(kind: Exclude<ModalKind, null> | "checkout", productId?: number) {
-  if(kind === 'checkout') {
-    if(!cartItems.value.length) { notify('Giỏ hàng đang trống.'); return; }
-    void router.push(dataSource === 'api' && !currentUser.value ? { path: '/login', query: { redirect: '/checkout' } } : '/checkout');
-    return;
-  }
+function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
   modalKind.value = kind;
   selectedProductId.value =
     productId ??
@@ -1378,17 +1378,15 @@ function statusClass(status: string) {
           <nav><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Lịch sử mua / Theo dõi đơn</RouterLink></nav>
         </details>
         <button v-if="currentUser" class="button button-outline" @click="logout"><LogOut :size="15" />Đăng xuất</button>
-        <button
+        <RouterLink
+          v-if="cartItems.length"
+          :to="checkoutDestination"
           class="button button-primary cart-button"
-          @click="
-            cartItems.length
-              ? openModal('checkout')
-              : notify('Giỏ hàng đang trống')
-          "
         >
           <ShoppingCart :size="17" /><span>Giỏ hàng</span
           ><b :key="cartItems.reduce((sum, item) => sum + item.quantity, 0)" class="cart-bump">{{ cartItems.reduce((sum, item) => sum + item.quantity, 0) }}</b>
-        </button>
+        </RouterLink>
+        <button v-else type="button" class="button button-primary cart-button" @click="notify('Giỏ hàng đang trống')"><ShoppingCart :size="17" /><span>Giỏ hàng</span><b>0</b></button>
       </div>
     </header>
     <section class="storefront-hero">
@@ -1520,13 +1518,14 @@ function statusClass(status: string) {
         <div class="cart-total">
           <span>Tạm tính</span><strong>{{ money(cartTotal) }}</strong>
         </div>
-        <button
+        <RouterLink
+          v-if="cartItems.length"
+          :to="checkoutDestination"
           class="button button-primary checkout-button"
-          :disabled="!cartItems.length"
-          @click="openModal('checkout')"
         >
           Tiến hành đặt hàng <ArrowRight :size="16" />
-        </button>
+        </RouterLink>
+        <button v-else type="button" class="button button-primary checkout-button" disabled>Tiến hành đặt hàng <ArrowRight :size="16" /></button>
         <p class="store-checkout-note">
           Chọn địa chỉ, voucher và phương thức ở trang thanh toán.
         </p>

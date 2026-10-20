@@ -11,6 +11,10 @@ import { installMotion } from "./motion";
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) return savedPosition;
+    return to.hash ? { el: to.hash, top: 20 } : { left: 0, top: 0 };
+  },
   routes: [
     { path: "/", redirect: () => landingPage(currentRole.value) },
     { path: "/login", component: App },
