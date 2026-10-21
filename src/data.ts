@@ -20,6 +20,7 @@ export type Product = {
 };
 
 export type Order = {
+  apiStatus?: string;
   paymentMethod?: string;
   id: string;
   apiId?: number;
@@ -28,8 +29,8 @@ export type Order = {
   customer: string;
   date: string;
   total: number;
-  status: "Chờ xác nhận" | "Đang xử lý" | "Đang giao" | "Hoàn tất" | "Đã hủy";
-  payment: "Đã thanh toán" | "Chờ thanh toán";
+  status: "Chờ xác nhận" | "Đang xử lý" | "Đang giao" | "Hoàn tất" | "Đã hủy" | "Thanh toán lỗi";
+  payment: "Đã thanh toán" | "Chờ thanh toán" | "Đã hủy" | "Hoàn tiền mô phỏng" | "Thanh toán lỗi";
   product: string;
   quantity: number;
 };

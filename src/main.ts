@@ -7,6 +7,7 @@ import "./style.css";
 import "./motion.css";
 import "./commerce.css";
 import "./checkout.css";
+import "./cancellations.css";
 import { installMotion } from "./motion";
 
 const router = createRouter({
@@ -25,6 +26,7 @@ const router = createRouter({
     { path: "/product/:id(\\d+)", component: App },
     { path: "/profile", component: App },
     { path: "/purchases", component: App },
+    { path: "/cancellations", component: App },
     { path: "/checkout", component: App },
     {
       path: "/:page(overview|products|orders|inventory|delivery|receiving|returns|staff)",

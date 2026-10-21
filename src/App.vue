@@ -72,6 +72,7 @@ import ProductsInventoryPage from "./views/ProductsInventoryPage.vue";
 import ReturnsPage from "./views/ReturnsPage.vue";
 import StaffPage from "./views/StaffPage.vue";
 import AccountPage from "./views/AccountPage.vue";
+import OrderCancellationsPage from './views/OrderCancellationsPage.vue';
 import AnimatedNumber from "./components/AnimatedNumber.vue";
 import ProductPage from "./views/ProductPage.vue";
 import StoreInfoPage from "./views/StoreInfoPage.vue";
@@ -96,6 +97,7 @@ const page = computed(() =>
   route.path === "/forbidden" ||
   route.path === "/profile" ||
   route.path === "/purchases" ||
+  route.path === "/cancellations" ||
   route.path === "/checkout" ||
   route.path === "/customer"
     ? route.path.slice(1)
@@ -241,6 +243,7 @@ const allNavGroups = [
     label: "BÁN HÀNG",
     items: [
       { title: "Đơn hàng", page: "orders", icon: ShoppingBag },
+      { title: "Đơn đã hủy", page: "cancellations", icon: RotateCcw },
       { title: "Sản phẩm", page: "products", icon: Boxes },
       { title: "Giao hàng", page: "delivery", icon: Truck },
       { title: "Đổi trả", page: "returns", icon: RotateCcw },
@@ -506,7 +509,7 @@ watch(
   [page, workspacePage, workspaceSize, workspaceSearch],
   async ([activePage]) => {
     const loadId = ++workspaceLoadId;
-    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide", "checkout"].includes(activePage)) {
+    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "cancellations", "product", "about", "guide", "checkout"].includes(activePage)) {
       apiWorkspaceLoading.value = false;
       return;
     }
@@ -1088,6 +1091,7 @@ async function advanceOrder(order: Order) {
     "Đang giao": "Hoàn tất",
     "Hoàn tất": "Hoàn tất",
     "Đã hủy": "Đã hủy",
+    "Thanh toán lỗi": "Thanh toán lỗi",
   };
   order.status = next[order.status];
   if (order.status === "Hoàn tất") order.payment = "Đã thanh toán";
@@ -1317,6 +1321,7 @@ function statusClass(status: string) {
 
 <template>
   <LoginPage v-if="page === 'login'" />
+  <OrderCancellationsPage v-else-if="page === 'cancellations'" />
   <CheckoutPage v-else-if="page === 'checkout'" :cart-items="cartItems" :cart-total="cartTotal" @clear-cart="clearCart" @refresh-products="refreshCart" />
   <ProductPage v-else-if="page === 'product'" :product-id="Number(route.params.id)" :cart-quantity="cart[Number(route.params.id)] || 0" @add="addToCart" />
   <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :section="page" />
@@ -1376,7 +1381,7 @@ function statusClass(status: string) {
         >
         <details v-if="currentUser" class="account-menu">
           <summary>{{ currentUser.displayName }}</summary>
-          <nav><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Lịch sử mua / Theo dõi đơn</RouterLink></nav>
+          <nav><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Lịch sử mua / Theo dõi đơn</RouterLink><RouterLink to="/cancellations?scope=mine">Đơn đã hủy</RouterLink></nav>
         </details>
         <button v-if="currentUser" class="button button-outline" @click="logout"><LogOut :size="15" />Đăng xuất</button>
         <RouterLink

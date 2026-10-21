@@ -26,10 +26,12 @@ import com.modernshopflow.catalog.domain.CatalogNotFoundException;
 public class OrderController {
     private final OrderService service;
     private final AccountService accounts;
+    private final OrderCancellationService cancellations;
 
-    public OrderController(OrderService service, AccountService accounts) {
+    public OrderController(OrderService service, AccountService accounts, OrderCancellationService cancellations) {
         this.service = service;
         this.accounts = accounts;
+        this.cancellations = cancellations;
     }
 
     @PostMapping
@@ -42,9 +44,17 @@ public class OrderController {
     public PageResponse<OrderSummary> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(name = "q", required = false) String search) {
-        PageResult<OrderSummary> result = service.list(page, size, search);
+            @RequestParam(name = "q", required = false) String search,
+            @RequestParam(required = false) String status) {
+        PageResult<OrderSummary> result = service.list(page, size, search,status);
         return PageResponse.fromPageResult(result, page, size);
+    }
+
+    @GetMapping("/{id}") public OrderResponse detail(@PathVariable long id) { return service.get(id); }
+
+    @PostMapping("/{id}/cancel") public OrderResponse cancel(@PathVariable long id,
+            @Valid @RequestBody OrderDtos.CancelOrderRequest request, Authentication authentication) {
+        return cancellations.cancelForStaff(id,accounts.requireUser(authentication).getId(),request.reason());
     }
 
     @GetMapping("/reference/{orderRef}")

@@ -35,6 +35,8 @@ class AuthHttpIntegrationTest {
                 new org.springframework.core.io.ClassPathResource("storefront-schema.sql")).execute(jdbc.getDataSource());
         new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
                 new org.springframework.core.io.ClassPathResource("checkout-schema.sql")).execute(jdbc.getDataSource());
+        new org.springframework.jdbc.datasource.init.ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource("db/migration/add_order_cancellations.sql")).execute(jdbc.getDataSource());
     }
     com.shopflow.backend.entity.User user(String role) {
         var result = auth.registerUser(UUID.randomUUID() + "@example.invalid", password, "Regression " + role);
@@ -91,6 +93,160 @@ class AuthHttpIntegrationTest {
     String checkoutBody(long product,String code,String key,String method,long expected) throws Exception {
         return json.writeValueAsString(java.util.Map.of("shippingAddress",java.util.Map.of("receiverName","Test receiver","phone","0901234567","addressLine","12 Test street","district","Test district","city","Test city"),"paymentMethod",method,"items",java.util.List.of(java.util.Map.of("productId",product,"quantity",2)),"voucherCode",code,"checkoutKey",key,"saveAddress",true,"makeDefault",true,"expectedTotal",expected));
     }
+    long cancellationOrder(HttpClient browser,long product,String method,String voucher,long total) throws Exception {
+        var response=request(browser,"/api/checkout/orders","POST",checkoutBody(product,voucher,UUID.randomUUID().toString(),method,total),csrf(browser));
+        assertEquals(200,response.statusCode(),response.body());
+        return json.readTree(response.body()).get("id").asLong();
+    }
+    HttpResponse<String> cancelMine(HttpClient browser,long id,String reason) throws Exception {
+        return request(browser,"/api/account/orders/"+id+"/cancel","POST",json.writeValueAsString(java.util.Map.of("reason",reason)),csrf(browser));
+    }
+    long reservation(long product) {
+        return jdbc.queryForObject("SELECT reserved_quantity FROM inventory_items WHERE variant_id=(SELECT id FROM product_variants WHERE product_id=?)",Long.class,product);
+    }
+    @Test void cancellationReleasesCardHoldAndVoucherOnlyOnceAndKeepsOriginalAudit() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct();String voucher=checkoutVoucher("FIXED_AMOUNT",5000,5000,0);
+        long order=cancellationOrder(browser,product,"CARD",voucher,45000);
+        assertEquals(400,cancelMine(browser,order,"  ").statusCode());
+        var cancelled=cancelMine(browser,order,"Ordered twice");assertEquals(200,cancelled.statusCode(),cancelled.body());
+        var body=json.readTree(cancelled.body());assertEquals("CANCELLED",body.get("status").asText());
+        assertEquals("NOT_CHARGED",body.get("cancellation").get("paymentOutcome").asText());
+        var repeated=cancelMine(browser,order,"Different reason");assertEquals(200,repeated.statusCode());
+        assertEquals(body.get("cancellation"),json.readTree(repeated.body()).get("cancellation"));
+        assertEquals("RELEASED",jdbc.queryForObject("SELECT status FROM stock_holds WHERE order_id=?",String.class,order));
+        assertEquals("CANCELLED",jdbc.queryForObject("SELECT status FROM payment_attempts WHERE order_id=?",String.class,order));
+        assertEquals(0,reservation(product));
+        assertEquals(0,jdbc.queryForObject("SELECT current_usage_count FROM vouchers WHERE code=?",Integer.class,voucher));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM voucher_usages WHERE order_id=?",Integer.class,order));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE reference_id=? AND movement_type='ORDER_CANCELLED_RELEASE'",Integer.class,order));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations WHERE order_id=?",Integer.class,order));
+        String reference=body.get("orderRef").asText();
+        assertEquals(409,request(browser,"/orders/"+reference+"/payments","POST","{\"result\":\"SUCCESS\"}",csrf(browser)).statusCode());
+    }
+    @Test void cancellingPreparingCodReleasesReservedStockAndPreventsFurtherDelivery() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        var staff=user("SALES_STAFF");var operator=client();login(operator,staff.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"COD","",50000);
+        assertEquals(2,reservation(product));
+        assertEquals(200,request(operator,"/orders/"+order+"/delivery","PATCH","{\"toStatus\":\"PREPARING\"}",csrf(operator)).statusCode());
+        var response=cancelMine(browser,order,"Changed my mind");assertEquals(200,response.statusCode(),response.body());
+        assertEquals(0,reservation(product));
+        assertEquals(10,jdbc.queryForObject("SELECT quantity FROM inventory_items WHERE variant_id=(SELECT id FROM product_variants WHERE product_id=?)",Integer.class,product));
+        assertEquals(409,request(operator,"/orders/"+order+"/delivery","PATCH","{\"toStatus\":\"SHIPPED\"}",csrf(operator)).statusCode());
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM orders WHERE id=? AND (status='PAID' OR (status='PENDING_PAYMENT' AND payment_method='COD'))",Integer.class,order));
+    }
+    @Test void paidCardAndBankOrdersGetSimulatedRefundWithoutChangingOriginalChargeTimestamp() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        for(String method:java.util.List.of("CARD","BANK_TRANSFER")) {
+            long product=checkoutProduct(),order=cancellationOrder(browser,product,method,"",50000);
+            String reference=jdbc.queryForObject("SELECT order_ref FROM orders WHERE id=?",String.class,order);
+            var paid=request(browser,"/orders/"+reference+"/payments","POST","{\"result\":\"SUCCESS\"}",csrf(browser));assertEquals(200,paid.statusCode(),paid.body());
+            var charged=jdbc.queryForObject("SELECT paid_at FROM payment_attempts WHERE order_id=?",java.time.OffsetDateTime.class,order);
+            assertEquals(2,reservation(product));
+            var response=cancelMine(browser,order,"Choose another instrument");assertEquals(200,response.statusCode(),response.body());
+            assertEquals(50000,json.readTree(response.body()).get("cancellation").get("refundAmount").asLong());
+            assertEquals("SIMULATED_REFUND",json.readTree(response.body()).get("cancellation").get("paymentOutcome").asText());
+            assertEquals("REFUNDED",jdbc.queryForObject("SELECT status FROM payment_attempts WHERE order_id=?",String.class,order));
+            assertEquals(charged,jdbc.queryForObject("SELECT paid_at FROM payment_attempts WHERE order_id=?",java.time.OffsetDateTime.class,order));
+            assertEquals(0,reservation(product));
+            assertEquals(200,cancelMine(browser,order,"Retry cancellation").statusCode());
+        }
+    }
+    @Test void cancellationEnforcesOwnershipAndStaffPermissions() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"COD","",50000);
+        var other=user("CUSTOMER");var stranger=client();login(stranger,other.getEmail());
+        assertEquals(404,cancelMine(stranger,order,"Not my order").statusCode());
+        assertEquals(403,request(stranger,"/orders/"+order+"/cancel","POST","{\"reason\":\"No\"}",csrf(stranger)).statusCode());
+        var warehouse=user("WAREHOUSE");var warehouseBrowser=client();login(warehouseBrowser,warehouse.getEmail());
+        assertEquals(403,request(warehouseBrowser,"/orders/"+order+"/cancel","POST","{\"reason\":\"No\"}",csrf(warehouseBrowser)).statusCode());
+        var guest=client();assertEquals(401,request(guest,"/api/account/orders/"+order+"/cancel","POST","{\"reason\":\"No\"}",csrf(guest)).statusCode());
+        assertEquals(2,reservation(product));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations WHERE order_id=?",Integer.class,order));
+    }
+    @Test void shippedAndDeliveredOrdersCannotBeCancelled() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        var owner=user("SHOP_OWNER");var operator=client();login(operator,owner.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"COD","",50000);
+        for(String status:java.util.List.of("PREPARING","SHIPPED","DELIVERED")) {
+            assertEquals(200,request(operator,"/orders/"+order+"/delivery","PATCH","{\"toStatus\":\""+status+"\"}",csrf(operator)).statusCode());
+            if(!status.equals("PREPARING")) assertEquals(409,cancelMine(browser,order,"Too late").statusCode());
+        }
+        assertEquals("PAID",jdbc.queryForObject("SELECT status FROM orders WHERE id=?",String.class,order));
+        assertEquals("SUCCESS",jdbc.queryForObject("SELECT status FROM payment_attempts WHERE order_id=?",String.class,order));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations WHERE order_id=?",Integer.class,order));
+        assertEquals(8,jdbc.queryForObject("SELECT quantity FROM inventory_items WHERE variant_id=(SELECT id FROM product_variants WHERE product_id=?)",Integer.class,product));
+    }
+    @Test void staffCanCancelAndCancelledHistoryIsFilteredAndPrivate() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"COD","",50000);
+        var staff=user("SALES_STAFF");var operator=client();login(operator,staff.getEmail());
+        var response=request(operator,"/orders/"+order+"/cancel","POST","{\"reason\":\"Customer requested by phone\"}",csrf(operator));
+        assertEquals(200,response.statusCode(),response.body());assertEquals("STAFF",json.readTree(response.body()).get("cancellation").get("actorKind").asText());
+        String filter="?status=CANCELLED&q=SF-"+order+"&size=1";
+        var history=request(operator,"/orders"+filter,"GET",null,null);assertEquals(200,history.statusCode(),history.body());
+        assertEquals(1,json.readTree(history.body()).get("totalItems").asInt());
+        assertEquals("Customer requested by phone",json.readTree(history.body()).get("items").get(0).get("cancellation").get("reason").asText());
+        assertEquals(1,json.readTree(request(browser,"/api/account/orders"+filter,"GET",null,null).body()).get("totalItems").asInt());
+        var other=user("CUSTOMER");var stranger=client();login(stranger,other.getEmail());
+        assertEquals(0,json.readTree(request(stranger,"/api/account/orders"+filter,"GET",null,null).body()).get("totalItems").asInt());
+        assertEquals(403,request(stranger,"/orders/"+order,"GET",null,null).statusCode());
+        assertEquals(400,request(operator,"/orders?status=unknown","GET",null,null).statusCode());
+    }
+    @Test void concurrentCancellationRequestsReleaseCommittedStockExactlyOnce() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"COD","",50000);
+        var input=HttpRequest.newBuilder(URI.create("http://localhost:"+port+"/api/account/orders/"+order+"/cancel"))
+                .header("Content-Type","application/json").header("X-XSRF-TOKEN",csrf(browser)).POST(HttpRequest.BodyPublishers.ofString("{\"reason\":\"Ordered twice\"}")).build();
+        var first=browser.sendAsync(input,HttpResponse.BodyHandlers.ofString());var second=browser.sendAsync(input,HttpResponse.BodyHandlers.ofString());
+        var a=first.get();var b=second.get();assertEquals(200,a.statusCode(),a.body());assertEquals(200,b.statusCode(),b.body());
+        assertEquals(0,reservation(product));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations WHERE order_id=?",Integer.class,order));
+        assertEquals(1,jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE reference_id=? AND movement_type='ORDER_CANCELLED_RELEASE'",Integer.class,order));
+    }
+
+    @Test void failedInventoryReleaseRollsBackEarlierVariantUpdatesAndCancellationAudit() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long first=checkoutProduct(),second=checkoutProduct();
+        String input="""
+                {"shippingAddress":{"receiverName":"Test receiver","phone":"0901234567","addressLine":"12 Test street","city":"Test city"},
+                "paymentMethod":"COD","items":[{"productId":%d,"quantity":2},{"productId":%d,"quantity":2}],
+                "checkoutKey":"%s","expectedTotal":100000,"saveAddress":false,"makeDefault":false}
+                """.formatted(first,second,UUID.randomUUID());
+        var placed=request(browser,"/api/checkout/orders","POST",input,csrf(browser));assertEquals(200,placed.statusCode(),placed.body());
+        long order=json.readTree(placed.body()).get("id").asLong();
+        jdbc.update("UPDATE inventory_items SET reserved_quantity=0 WHERE variant_id=(SELECT id FROM product_variants WHERE product_id=?)",second);
+        assertEquals(409,cancelMine(browser,order,"Test atomic cancellation").statusCode());
+        assertEquals(2,reservation(first));
+        assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM stock_holds WHERE order_id=? AND status='COMMITTED'",Integer.class,order));
+        assertEquals("PENDING_PAYMENT",jdbc.queryForObject("SELECT status FROM orders WHERE id=?",String.class,order));
+        assertEquals("PENDING",jdbc.queryForObject("SELECT status FROM payment_attempts WHERE order_id=?",String.class,order));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations WHERE order_id=?",Integer.class,order));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE reference_id=? AND movement_type='ORDER_CANCELLED_RELEASE'",Integer.class,order));
+    }
+
+    @Test void missingCommittedHoldCannotSilentlyLeaveReservedInventoryAfterCancellation() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"COD","",50000);
+        jdbc.update("UPDATE stock_holds SET status='RELEASED' WHERE order_id=?",order);
+        assertEquals(409,cancelMine(browser,order,"Try cancellation").statusCode());
+        assertEquals(2,reservation(product));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations WHERE order_id=?",Integer.class,order));
+    }
+    @Test void explicitlyCancellingFailedPaymentPreservesTheOriginalFailureAndDoesNotReleaseTwice() throws Exception {
+        var customer=user("CUSTOMER");var browser=client();login(browser,customer.getEmail());
+        long product=checkoutProduct(),order=cancellationOrder(browser,product,"CARD","",50000);
+        String reference=jdbc.queryForObject("SELECT order_ref FROM orders WHERE id=?",String.class,order);
+        assertEquals(200,request(browser,"/orders/"+reference+"/payments","POST","{\"result\":\"FAILED\",\"failureReason\":\"Declined\"}",csrf(browser)).statusCode());
+        var response=cancelMine(browser,order,"Do not retry this order");assertEquals(200,response.statusCode(),response.body());
+        assertEquals("CANCELLED",json.readTree(response.body()).get("status").asText());
+        assertEquals("FAILED",jdbc.queryForObject("SELECT status FROM payment_attempts WHERE order_id=?",String.class,order));
+        assertEquals("Declined",jdbc.queryForObject("SELECT failure_reason FROM payment_attempts WHERE order_id=?",String.class,order));
+        assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM stock_movements WHERE reference_id=? AND movement_type='ORDER_CANCELLED_RELEASE'",Integer.class,order));
+        assertEquals(0,reservation(product));
+    }
+
     @Test void savedAddressesArePrivateAndHaveOneDefault() throws Exception {
         var first=user("CUSTOMER");var second=user("CUSTOMER");var a=client();var b=client();login(a,first.getEmail());login(b,second.getEmail());
         String input="{\"shippingAddress\":{\"receiverName\":\"Receiver\",\"phone\":\"0901234567\",\"addressLine\":\"12 Test street\",\"city\":\"Test city\"},\"makeDefault\":true}";

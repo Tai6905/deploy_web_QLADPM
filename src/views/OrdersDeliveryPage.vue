@@ -2,6 +2,7 @@
 import { ArrowRight, Download, Search, Truck } from "lucide-vue-next";
 import type { Order } from "../data";
 import PaginationBar from "../components/PaginationBar.vue";
+import { canCancelOrder } from '../orders/cancellations';
 
 type PageState = {
   page: number;
@@ -51,6 +52,7 @@ const emit = defineEmits<{
         </button>
       </div>
       <div class="toolbar-actions">
+        <RouterLink v-if="canManageOrders" to="/cancellations" class="button button-outline">Đơn đã hủy</RouterLink>
         <label class="table-search"
           ><Search :size="16" /><input
             :value="search"
@@ -103,7 +105,7 @@ const emit = defineEmits<{
               <span
                 class="payment-label"
                 :class="{ 'payment-label--paid': order.payment === 'Đã thanh toán' }"
-                >{{ order.paymentMethod === 'COD' && order.payment !== 'Đã thanh toán' ? 'Thu tiền khi nhận hàng' : order.payment }}</span
+                >{{ order.paymentMethod === 'COD' && order.payment === 'Chờ thanh toán' ? 'Thu tiền khi nhận hàng' : order.payment }}</span
               >
             </td>
             <td>
@@ -114,10 +116,11 @@ const emit = defineEmits<{
               >
             </td>
             <td>
+              <RouterLink v-if="canManageOrders && order.apiId && canCancelOrder({ status: order.apiStatus || '', deliveryStatus: order.deliveryStatus || '', paymentMethod: order.paymentMethod })" :to="{ path: '/cancellations', query: { order: order.apiId } }" class="button button-small cancellation-link">Hủy đơn</RouterLink>
               <button
                 class="button button-small button-outline"
                 :disabled="
-                  order.status === 'Hoàn tất' || order.status === 'Đã hủy' || (order.payment !== 'Đã thanh toán' && order.paymentMethod !== 'COD')
+                  order.status === 'Hoàn tất' || order.status === 'Đã hủy' || order.status === 'Thanh toán lỗi' || (order.payment !== 'Đã thanh toán' && order.paymentMethod !== 'COD')
                 "
                 @click="emit('advance-order', order)"
               >
