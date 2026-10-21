@@ -69,9 +69,9 @@ function selectDemoRole(role: UserRole | null) {
     <section class="auth-panel">
       <RouterLink to="/customer" class="store-brand">
         <span class="brand-mark"><span></span><span></span><span></span></span>
-        <strong>Mộc Studio</strong>
+        <strong>ShopFlow</strong>
       </RouterLink>
-      <span class="auth-kicker">MỘC STUDIO · TÀI KHOẢN</span>
+      <span class="auth-kicker">SHOPFLOW · TÀI KHOẢN</span>
       <h1 :key="loginMode" class="auth-title">{{ loginMode === "register" ? "Tạo tài khoản" : "Đăng nhập" }}</h1>
       <p>
         {{

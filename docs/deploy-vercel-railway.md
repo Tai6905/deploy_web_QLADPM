@@ -21,7 +21,7 @@ Frontend chạy trên Vercel, backend Spring Boot chạy trên Railway, PostgreS
 
 Không đặt mật khẩu database trong biến `VITE_*`. Không cần tạo database khác hoặc tạo lại bốn tài khoản: chúng đã có trên Aiven. Profile `production` được bật bằng lệnh chạy và dùng cổng `PORT` Railway cấp; nó không tự áp dụng migration lên database hiện có.
 
-Bản nâng cấp Mộc Studio cần migration thứ 10: `enhance_storefront_and_receiving.sql` cho giá nhập, hướng dẫn sử dụng và đánh giá. Áp dụng bằng công cụ schema initializer trước khi deploy backend mới; xem [cách sử dụng và cập nhật storefront](storefront-upgrade.md). Không xóa hoặc tạo lại database.
+Bản nâng cấp ShopFlow cần migration thứ 10: `enhance_storefront_and_receiving.sql` cho giá nhập, hướng dẫn sử dụng và đánh giá. Áp dụng bằng công cụ schema initializer trước khi deploy backend mới; xem [cách sử dụng và cập nhật storefront](storefront-upgrade.md). Không xóa hoặc tạo lại database.
 
 Trang thanh toán riêng cần thêm migration thứ 11: `add_checkout_addresses_and_vouchers.sql`. Xem [hướng dẫn checkout](checkout.md) cho địa chỉ lưu theo tài khoản, voucher, COD và phương thức thanh toán mô phỏng. Deploy cả backend và frontend của bản checkout sau khi schema đã sẵn sàng.
 

@@ -6,6 +6,17 @@ const { useCart } = loadSource("src/cart.ts");
 const cup = { id: 1, name: "Cup", price: 25000, stock: 4 };
 const bag = { id: 2, name: "Bag", price: 50000, stock: 2 };
 
+test("catalog correction removes retired household SKUs while keeping instruments and quantities", async () => {
+  const storage=memoryStorage();
+  const cart=useCart(storage);
+  cart.add({...cup,sku:'MOC-COC-001'},2);
+  cart.add({...bag,sku:'MOC-ACOU-001'},2);
+  cart.removeSkus(['MOC-COC-001','MST001']);
+  assert.deepEqual(cart.cartItems.value.map(item=>[item.product.sku,item.quantity]),[['MOC-ACOU-001',2]]);
+  await nextTick();
+  assert.equal(useCart(storage).cartItems.value.length,1);
+});
+
 test("product detail adds the chosen quantity atomically within available stock", () => {
   const cart = useCart();
   assert.equal(cart.add(cup, 3), true);

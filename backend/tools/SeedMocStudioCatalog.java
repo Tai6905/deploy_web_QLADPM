@@ -24,7 +24,8 @@ class SeedMocStudioCatalog {
     public record Category(String name, String slug, String description) {}
     public record Product(String sku, String categorySlug, String name, long costPrice, long listPrice,
             int quantity, int lowStockThreshold, String description, String usageInstructions, List<String> imageUrls) {}
-    public record Dataset(String dataset, List<Category> categories, List<Product> products) {}
+    public record Dataset(String dataset, List<Category> categories, List<Product> products,
+            List<String> archiveProductSkus,List<String> archiveCategorySlugs) {}
 
     private static void check(boolean condition, String message) {
         if (!condition) throw new IllegalStateException(message);
@@ -53,6 +54,12 @@ class SeedMocStudioCatalog {
                 check("https".equals(uri.getScheme()) && "images.unsplash.com".equals(uri.getHost()) && uri.getUserInfo() == null, "Unexpected demo image URL");
             }
         }
+        if(data.archiveProductSkus()!=null) for(String sku:data.archiveProductSkus()) {
+            check(!skus.contains(sku) && (sku.matches("MOC-(BINH|TUI|SO|DEN|COC|NEN)-[0-9]{3}") || sku.equals("MST001")),"Unexpected SKU in archive list");
+        }
+        if(data.archiveCategorySlugs()!=null) for(String slug:data.archiveCategorySlugs()) {
+            check(Set.of("moc-binh-uong","moc-tui-canvas","moc-so-tay","moc-den-ban","moc-coc-gom","moc-nen-thom","gia dinh").contains(slug),"Unexpected category in archive list");
+        }
         System.out.println("Dataset: " + data.dataset() + ", SHA-256: " + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)));
         try (var app = SpringApplication.run(CatalogApplication.class,
                 "--server.port=0", "--app.schema.initializer.enabled=false", "--app.bootstrap.owner.email=",
@@ -67,12 +74,21 @@ class SeedMocStudioCatalog {
             // Compare within one snapshot: live registrations/orders must not look like seed writes.
             transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
             int[] inserted = {0}, skipped = {0}, categoriesCreated = {0};
+            int[] archivedProducts={0},archivedCategories={0};
+            List<Long> retiredIds=new ArrayList<>();
             long[] receivedValue = {0}, receivedQuantity = {0};
             List<Long> createdProductIds = new ArrayList<>(), createdCategoryIds = new ArrayList<>(), createdReceiptIds = new ArrayList<>();
             transaction.executeWithoutResult(status -> {
                 if (!apply) status.setRollbackOnly();
                 jdbc.execute("SELECT pg_advisory_xact_lock(79240310021)");
                 var before = counts(jdbc, tables);
+                if(data.archiveProductSkus()!=null) for(String sku:data.archiveProductSkus()) {
+                    retiredIds.addAll(jdbc.queryForList("SELECT id FROM products WHERE sku=? AND is_deleted=FALSE",Long.class,sku));
+                    archivedProducts[0]+=jdbc.update("UPDATE products SET is_deleted=TRUE,updated_at=CURRENT_TIMESTAMP WHERE sku=? AND is_deleted=FALSE",sku);
+                }
+                if(data.archiveCategorySlugs()!=null) for(String slug:data.archiveCategorySlugs()) {
+                    archivedCategories[0]+=jdbc.update("UPDATE categories SET is_deleted=TRUE,updated_at=CURRENT_TIMESTAMP WHERE slug=? AND is_deleted=FALSE AND NOT EXISTS(SELECT 1 FROM products p WHERE p.category_id=categories.id AND p.is_deleted=FALSE)",slug);
+                }
                 var catalog = app.getBean(CatalogService.class);
                 var receiving = app.getBean(ReceivingService.class);
                 var inventory = app.getBean(InventoryService.class);
@@ -104,7 +120,7 @@ class SeedMocStudioCatalog {
                     var created = catalog.createProduct(input);
                     createdProductIds.add(created.id());
                     long variant = created.productVariants().getFirst().id();
-                    var receipt = receiving.receive(new ReceivingRequest(variant, product.quantity(), "Mộc Studio · dữ liệu mẫu",
+                    var receipt = receiving.receive(new ReceivingRequest(variant, product.quantity(), "ShopFlow · dữ liệu mẫu",
                             data.dataset() + " | " + product.sku() + " | Tồn đầu kỳ minh họa đồ án", BigDecimal.valueOf(product.costPrice())));
                     createdReceiptIds.add(receipt.id());
                     inventory.updateThreshold(created.id(), new ThresholdRequest(product.lowStockThreshold()));
@@ -134,12 +150,13 @@ class SeedMocStudioCatalog {
                 check(countIds(jdbc, "products", createdProductIds) == 0
                         && countIds(jdbc, "categories", createdCategoryIds) == 0
                         && countIds(jdbc, "receiving_records", createdReceiptIds) == 0, "Dry run left seed rows behind");
+                for(long id:retiredIds) check(!jdbc.queryForObject("SELECT is_deleted FROM products WHERE id=?",Boolean.class,id),"Dry run left an existing product archived");
             } else {
                 check(countIds(jdbc, "products", createdProductIds) == inserted[0]
                         && countIds(jdbc, "receiving_records", createdReceiptIds) == inserted[0], "Committed seed rows not found");
             }
-            System.out.printf(Locale.ROOT, "%s: categories=%d, products=%d, skipped=%d, units=%d, receipt_value_vnd=%d%n",
-                    apply ? "COMMITTED" : "ROLLED BACK", categoriesCreated[0], inserted[0], skipped[0], receivedQuantity[0], receivedValue[0]);
+            System.out.printf(Locale.ROOT, "%s: categories=%d, products=%d, skipped=%d, units=%d, receipt_value_vnd=%d, archived_products=%d, archived_categories=%d%n",
+                    apply ? "COMMITTED" : "ROLLED BACK", categoriesCreated[0], inserted[0], skipped[0], receivedQuantity[0], receivedValue[0],archivedProducts[0],archivedCategories[0]);
         }
     }
 

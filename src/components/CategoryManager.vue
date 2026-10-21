@@ -84,7 +84,7 @@ function save() {
 
         <form class="category-form" @submit.prevent="save">
           <h3>{{ editingId === null ? "Thêm danh mục" : "Sửa danh mục" }}</h3>
-          <label class="form-label">Tên danh mục<input v-model="form.name" required maxlength="255" placeholder="Ví dụ: Đồ dùng" /></label>
+          <label class="form-label">Tên danh mục<input v-model="form.name" required maxlength="255" placeholder="Ví dụ: Guitar acoustic" /></label>
           <label class="form-label">Slug<input v-model="form.slug" required maxlength="255" placeholder="do-dung" /></label>
           <label class="form-label">Mô tả<textarea v-model="form.description" maxlength="5000" rows="3" placeholder="Mô tả ngắn (tùy chọn)" /></label>
           <p v-if="error" class="form-error" role="alert">{{ error }}</p>

@@ -33,6 +33,7 @@ import {
 } from "lucide-vue-next";
 import {
   money,
+  retiredCatalogSkus,
   seedOrders,
   seedProducts,
   seedReturns,
@@ -140,21 +141,22 @@ const productDetailId = ref<number | null>(null);
 const productDetail = computed(
   () => products.value.find((product) => product.id === productDetailId.value) ?? null,
 );
-const { cart, cartItems, cartTotal, add: addCartItem, adjust: adjustCart, refresh: refreshCart, clear: clearCart } =
-  useCart(localStorage, `shopflow.${dataSource}.cart.v1`);
+const { cart, cartItems, cartTotal, add: addCartItem, adjust: adjustCart, refresh: refreshCart, clear: clearCart, removeSkus: removeCartSkus } =
+  useCart(localStorage, dataSource === "demo" ? "moc.music.demo.cart.v1" : "shopflow.api.cart.v1");
+removeCartSkus(retiredCatalogSkus);
 const checkoutDestination = computed(() =>
   dataSource === 'api' && !currentUser.value
     ? { path: '/login', query: { redirect: '/checkout' } }
     : { path: '/checkout' },
 );
 const products = ref<Product[]>(
-  dataSource === "demo" ? readStore("shopflow.products", seedProducts) : [],
+  dataSource === "demo" ? readStore("moc.music.products.v1", seedProducts) : [],
 );
 const orders = ref<Order[]>(
-  dataSource === "demo" ? readStore("shopflow.orders", seedOrders) : [],
+  dataSource === "demo" ? readStore("moc.music.orders.v1", seedOrders) : [],
 );
 const returns = ref<ReturnRequest[]>(
-  dataSource === "demo" ? readStore("shopflow.returns", seedReturns) : [],
+  dataSource === "demo" ? readStore("moc.music.returns.v1", seedReturns) : [],
 );
 
 function toCatalogProduct(item: ProductListItem): Product {
@@ -177,7 +179,7 @@ function toCatalogProduct(item: ProductListItem): Product {
 const form = reactive({
   name: "",
   sku: "",
-  category: "Đồ dùng",
+  category: "Guitar acoustic",
   categoryId: 0,
   price: 0,
   unitCost: 0,
@@ -209,7 +211,7 @@ watch(
   products,
   (value) => {
     if (dataSource === "demo")
-      localStorage.setItem("shopflow.products", JSON.stringify(value));
+      localStorage.setItem("moc.music.products.v1", JSON.stringify(value));
   },
   { deep: true },
 );
@@ -217,7 +219,7 @@ watch(
   orders,
   (value) => {
     if (dataSource === "demo")
-      localStorage.setItem("shopflow.orders", JSON.stringify(value));
+      localStorage.setItem("moc.music.orders.v1", JSON.stringify(value));
   },
   { deep: true },
 );
@@ -225,7 +227,7 @@ watch(
   returns,
   (value) => {
     if (dataSource === "demo")
-      localStorage.setItem("shopflow.returns", JSON.stringify(value));
+      localStorage.setItem("moc.music.returns.v1", JSON.stringify(value));
   },
   { deep: true },
 );
@@ -649,7 +651,7 @@ function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
     unitCost: 0, description: "", usageInstructions: "", imageUrls: "",
     name: "",
     sku: "",
-    category: "Đồ dùng",
+    category: "Guitar acoustic",
     categoryId: apiCategories.value[0]?.id ?? 0,
     price: 0,
     quantity: 1,
@@ -851,8 +853,7 @@ async function submitModal() {
       stock: 0,
       threshold: 8,
       color: "sage",
-      image:
-        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=120&q=80",
+      image: form.imageUrls.split(/\r?\n/).map(value => value.trim()).find(Boolean) || "",
     });
     closeModal();
     notify("Đã thêm sản phẩm vào danh mục");
@@ -1173,7 +1174,7 @@ function exportOrders() {
   link.href = URL.createObjectURL(
     new Blob([csv], { type: "text/csv;charset=utf-8" }),
   );
-  link.download = "moc-studio-don-hang.csv";
+  link.download = "shopflow-don-hang.csv";
   link.click();
   URL.revokeObjectURL(link.href);
   notify("Đã xuất danh sách đơn hàng");
@@ -1201,7 +1202,7 @@ function exportProducts() {
   link.href = URL.createObjectURL(
     new Blob([csv], { type: "text/csv;charset=utf-8" }),
   );
-  link.download = "moc-studio-san-pham.csv";
+  link.download = "shopflow-san-pham.csv";
   link.click();
   URL.revokeObjectURL(link.href);
   notify("Đã xuất danh mục sản phẩm");
@@ -1341,7 +1342,7 @@ function statusClass(status: string) {
     <header class="storefront-header">
       <RouterLink to="/customer" class="store-brand"
         ><span class="brand-mark"><span></span><span></span><span></span></span
-        ><strong>Mộc Studio</strong></RouterLink
+        ><strong>ShopFlow</strong></RouterLink
       ><label class="store-search"
         ><Search :size="17" /><input
           v-model="search"
@@ -1391,14 +1392,14 @@ function statusClass(status: string) {
     </header>
     <section class="storefront-hero">
       <div class="hero-copy">
-        <span class="auth-kicker">MỘC STUDIO · ĐỒ DÙNG SỐNG XANH</span>
-        <h1>Những món đồ nhỏ,<br />cho ngày thường tốt hơn.</h1>
-        <p>Sản phẩm được chọn kỹ cho góc sống có chủ đích.</p>
+        <span class="auth-kicker">SHOPFLOW · NHẠC CỤ & ĐAM MÊ</span>
+        <h1>Chạm từng âm sắc,<br />bắt đầu đam mê.</h1>
+        <p>Khám phá guitar, piano, violin, trống và kèn cho hành trình âm nhạc của bạn.</p>
         <a class="hero-explore" href="#collection">Khám phá bộ sưu tập <ArrowRight :size="17" /></a>
       </div>
       <div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-stamp">
-        <span>CURATED<br />FOR EVERYDAY</span><Sparkles :size="25" />
+        <span>PLAY<br />YOUR STORY</span><Sparkles :size="25" />
       </div>
     </section>
     <div class="storefront-content">
@@ -1532,8 +1533,8 @@ function statusClass(status: string) {
       </aside>
     </div>
     <footer class="storefront-footer">
-      <span>© 2026 Mộc Studio · Mộc Studio</span
-      ><nav class="store-footer-links"><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang mua sắm</RouterLink></nav><span>Đơn giản hơn, có chủ đích hơn.</span>
+      <span>© 2026 ShopFlow</span
+      ><nav class="store-footer-links"><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang mua sắm</RouterLink></nav><span>Âm nhạc bắt đầu từ cảm hứng.</span>
     </footer>
     <Transition name="dialog">
     <ProductDetailDialog
@@ -1553,7 +1554,7 @@ function statusClass(status: string) {
     <aside class="sidebar" :class="{ 'sidebar--open': mobileMenuOpen }">
       <div class="brand-lockup">
         <div class="brand-mark"><span></span><span></span><span></span></div>
-        <div><strong>Mộc Studio</strong><small>QUẢN LÝ CỬA HÀNG</small></div>
+        <div><strong>ShopFlow</strong><small>QUẢN LÝ CỬA HÀNG</small></div>
         <button
           class="icon-button sidebar-close"
           aria-label="Đóng menu"
@@ -1564,9 +1565,9 @@ function statusClass(status: string) {
       </div>
 
       <button class="store-switcher">
-        <span class="store-avatar">M</span>
+        <span class="store-avatar">S</span>
         <span class="store-copy"
-          ><strong>Mộc Studio</strong><small>Cửa hàng chính</small></span
+          ><strong>ShopFlow</strong><small>Cửa hàng chính</small></span
         >
         <ChevronDown :size="15" />
       </button>
@@ -1604,9 +1605,9 @@ function statusClass(status: string) {
       <div class="sidebar-bottom">
         <div class="plan-card">
           <div class="plan-icon"><Sparkles :size="16" /></div>
-          <strong>Mộc Studio</strong>
+          <strong>ShopFlow</strong>
           <p>Quản lý cửa hàng dễ dàng hơn mỗi ngày.</p>
-          <button @click="notify('Bạn đang sử dụng gói demo Mộc Studio')">
+          <button @click="notify('Bạn đang sử dụng gói demo ShopFlow')">
             Tìm hiểu thêm <ArrowRight :size="14" />
           </button>
         </div>
@@ -1641,7 +1642,7 @@ function statusClass(status: string) {
           <Menu :size="20" />
         </button>
         <div class="breadcrumbs">
-          <span>Mộc Studio</span><span class="crumb-divider">/</span
+          <span>ShopFlow</span><span class="crumb-divider">/</span
           ><strong>{{ title }}</strong>
         </div>
         <div class="topbar-tools">
@@ -2148,7 +2149,7 @@ function statusClass(status: string) {
         />
 
         <footer class="app-footer">
-          <span>© 2026 Mộc Studio</span
+          <span>© 2026 ShopFlow</span
           ><span>Vận hành cửa hàng, nhẹ nhàng hơn.</span
           ><span class="footer-status"
             ><i></i> Hệ thống hoạt động bình thường</span
@@ -2167,7 +2168,7 @@ function statusClass(status: string) {
       <form class="modal" @submit.prevent="submitModal">
         <div class="modal-heading">
           <div>
-            <span class="modal-kicker">MỘC STUDIO · KHO VẬN</span>
+            <span class="modal-kicker">SHOPFLOW · KHO VẬN</span>
             <h2>
               {{
                 modalKind === "order"
@@ -2262,10 +2263,10 @@ function statusClass(status: string) {
                 </option>
               </select>
               <select v-else v-model="form.category">
-                <option>Đồ dùng</option>
-                <option>Phụ kiện</option>
-                <option>Văn phòng phẩm</option>
-                <option>Trang trí</option>
+                <option>Guitar acoustic</option>
+                <option>Guitar điện</option>
+                <option>Đàn piano</option>
+                <option>Trống acoustic</option><option>Đàn violin</option><option>Kèn trumpet</option>
               </select></label
             >
           </div>

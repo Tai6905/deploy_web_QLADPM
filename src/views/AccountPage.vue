@@ -109,7 +109,7 @@ async function pay() {
 <template>
   <main class="account-page">
     <header class="account-header">
-      <RouterLink to="/customer" class="store-brand"><strong>Mộc Studio</strong></RouterLink>
+      <RouterLink to="/customer" class="store-brand"><strong>ShopFlow</strong></RouterLink>
       <nav><RouterLink to="/customer">Cửa hàng</RouterLink><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Đơn mua của tôi</RouterLink><button class="button button-outline" @click="emit('logout')">Đăng xuất</button></nav>
     </header>
     <div :key="tab" class="account-content">

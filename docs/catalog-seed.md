@@ -1,63 +1,69 @@
-# Dữ liệu mẫu Mộc Studio
+# Catalog nhạc cụ ShopFlow
 
-Bộ `moc-studio-catalog-v1` gồm 24 sản phẩm thuộc 6 danh mục: bình uống, túi canvas, sổ tay, đèn, cốc gốm và nến. Mỗi sản phẩm có giá bán, giá vốn, mô tả tiếng Việt, hướng dẫn sử dụng, ảnh và ngưỡng tồn kho.
+Bộ `moc-studio-catalog-v2` dùng cho website bán nhạc cụ. Có 24 sản phẩm thuộc 6 danh mục: guitar acoustic, guitar điện, piano, trống acoustic, violin và trumpet.
 
-Đây là dữ liệu mẫu phục vụ đồ án. Giá, dung tích, trọng lượng, mùi hương và ảnh cần được xác nhận với hàng thực tế trước khi kinh doanh. Các mô tả sản phẩm cũng có ghi chú này.
+Đây là dữ liệu mẫu phục vụ đồ án: tên mẫu Mộc, giá vốn, giá bán, thông số và ảnh minh họa cần được xác nhận với nhạc cụ thực tế trước khi kinh doanh. Mô tả công khai của từng sản phẩm có ghi chú này.
 
-## Danh sách
+## Danh sách nhạc cụ
 
-| SKU | Sản phẩm | Giá bán | Giá vốn mẫu | Số lượng đầu kỳ |
+| SKU | Nhạc cụ | Giá bán mẫu | Giá vốn mẫu | Tồn ban đầu |
 | --- | --- | ---: | ---: | ---: |
-| MOC-BINH-001 | Bình nước Mộc Rừng Xanh 500ml | 285.000 ₫ | 175.000 ₫ | 32 |
-| MOC-BINH-002 | Bình nước Mộc Daily 600ml | 315.000 ₫ | 190.000 ₫ | 24 |
-| MOC-BINH-003 | Bình nước Mộc Weekend 750ml | 359.000 ₫ | 215.000 ₫ | 18 |
-| MOC-BINH-004 | Bình nước Mộc Journey 1L | 429.000 ₫ | 265.000 ₫ | 6 |
-| MOC-TUI-001 | Túi canvas Mộc Daily | 169.000 ₫ | 95.000 ₫ | 36 |
-| MOC-TUI-002 | Túi canvas Mộc Đi Học | 219.000 ₫ | 125.000 ₫ | 28 |
-| MOC-TUI-003 | Túi canvas Mộc Mini | 139.000 ₫ | 75.000 ₫ | 20 |
-| MOC-TUI-004 | Túi canvas Mộc Cuối Tuần | 249.000 ₫ | 145.000 ₫ | 14 |
-| MOC-SO-001 | Sổ tay Mộc Ý Tưởng A5 | 79.000 ₫ | 39.000 ₫ | 48 |
-| MOC-SO-002 | Sổ kế hoạch Mộc Tuần Mới | 109.000 ₫ | 55.000 ₫ | 36 |
-| MOC-SO-003 | Sổ tay Mộc Bỏ Túi A6 | 49.000 ₫ | 25.000 ₫ | 40 |
-| MOC-SO-004 | Sổ ghi chép Mộc Dòng Chảy A5 | 89.000 ₫ | 45.000 ₫ | 22 |
-| MOC-DEN-001 | Đèn đọc sách Mộc Lumi Mini | 429.000 ₫ | 260.000 ₫ | 16 |
-| MOC-DEN-002 | Đèn bàn Mộc Focus | 529.000 ₫ | 325.000 ₫ | 12 |
-| MOC-DEN-003 | Đèn bàn Mộc Reading | 489.000 ₫ | 295.000 ₫ | 8 |
-| MOC-DEN-004 | Đèn bàn Mộc Studio | 689.000 ₫ | 425.000 ₫ | 4 |
-| MOC-COC-001 | Cốc gốm Mộc Ban Mai 280ml | 129.000 ₫ | 65.000 ₫ | 30 |
-| MOC-COC-002 | Cốc gốm Mộc An Nhiên 350ml | 159.000 ₫ | 85.000 ₫ | 26 |
-| MOC-COC-003 | Cốc gốm Mộc Chậm 400ml | 179.000 ₫ | 95.000 ₫ | 18 |
-| MOC-COC-004 | Cốc gốm Mộc Ngày Thường 450ml | 209.000 ₫ | 115.000 ₫ | 6 |
-| MOC-NEN-001 | Nến thơm Mộc Gỗ Ấm 120g | 169.000 ₫ | 85.000 ₫ | 24 |
-| MOC-NEN-002 | Nến thơm Mộc Vườn Sớm 150g | 199.000 ₫ | 105.000 ₫ | 20 |
-| MOC-NEN-003 | Nến thơm Mộc Trà Chiều 180g | 239.000 ₫ | 125.000 ₫ | 12 |
-| MOC-NEN-004 | Nến thơm Mộc Tĩnh 200g | 279.000 ₫ | 145.000 ₫ | 5 |
+| MOC-ACOU-001 | Guitar acoustic Mộc A100 | 2.790.000 ₫ | 1.900.000 ₫ | 12 |
+| MOC-ACOU-002 | Guitar acoustic Mộc A200 | 3.890.000 ₫ | 2.700.000 ₫ | 10 |
+| MOC-ACOU-003 | Guitar acoustic Mộc A300 | 5.190.000 ₫ | 3.600.000 ₫ | 6 |
+| MOC-ACOU-004 | Guitar acoustic Mộc A400 | 6.890.000 ₫ | 4.800.000 ₫ | 3 |
+| MOC-ELEC-001 | Guitar điện Mộc E100 | 4.190.000 ₫ | 2.900.000 ₫ | 10 |
+| MOC-ELEC-002 | Guitar điện Mộc E200 | 5.590.000 ₫ | 3.900.000 ₫ | 8 |
+| MOC-ELEC-003 | Guitar điện Mộc E300 | 7.490.000 ₫ | 5.200.000 ₫ | 5 |
+| MOC-ELEC-004 | Guitar điện Mộc E400 | 9.290.000 ₫ | 6.500.000 ₫ | 2 |
+| MOC-PIANO-001 | Piano cơ Mộc P100 | 24.900.000 ₫ | 18.000.000 ₫ | 4 |
+| MOC-PIANO-002 | Piano cơ Mộc P200 | 34.900.000 ₫ | 25.000.000 ₫ | 3 |
+| MOC-PIANO-003 | Piano cơ Mộc P300 | 45.900.000 ₫ | 33.000.000 ₫ | 2 |
+| MOC-PIANO-004 | Piano cơ Mộc P400 | 59.900.000 ₫ | 43.000.000 ₫ | 1 |
+| MOC-DRUM-001 | Bộ trống acoustic Mộc D100 | 9.290.000 ₫ | 6.500.000 ₫ | 7 |
+| MOC-DRUM-002 | Bộ trống acoustic Mộc D200 | 12.900.000 ₫ | 9.000.000 ₫ | 5 |
+| MOC-DRUM-003 | Bộ trống acoustic Mộc D300 | 16.900.000 ₫ | 12.000.000 ₫ | 3 |
+| MOC-DRUM-004 | Bộ trống acoustic Mộc D400 | 22.900.000 ₫ | 16.500.000 ₫ | 2 |
+| MOC-VIOL-001 | Violin Mộc V100 cỡ 1/2 | 1.390.000 ₫ | 950.000 ₫ | 14 |
+| MOC-VIOL-002 | Violin Mộc V200 cỡ 3/4 | 1.990.000 ₫ | 1.350.000 ₫ | 10 |
+| MOC-VIOL-003 | Violin Mộc V300 cỡ 4/4 | 3.190.000 ₫ | 2.200.000 ₫ | 8 |
+| MOC-VIOL-004 | Violin Mộc V400 cỡ 4/4 | 5.290.000 ₫ | 3.700.000 ₫ | 4 |
+| MOC-TRUMP-001 | Trumpet Mộc T100 | 3.190.000 ₫ | 2.200.000 ₫ | 9 |
+| MOC-TRUMP-002 | Trumpet Mộc T200 | 4.690.000 ₫ | 3.300.000 ₫ | 7 |
+| MOC-TRUMP-003 | Trumpet Mộc T300 | 6.690.000 ₫ | 4.700.000 ₫ | 4 |
+| MOC-TRUMP-004 | Trumpet Mộc T400 | 9.290.000 ₫ | 6.500.000 ₫ | 2 |
 
-Tổng tồn kho bổ sung: **505 đơn vị**. Tổng giá trị phiếu nhập mẫu: **56.957.000 ₫**.
+Tổng tồn kho mẫu mới: **141 đơn vị**. Giá trị phiếu nhập mẫu mới: **734.400.000 ₫**.
 
-## Nhập và kiểm tra
+## Sửa bộ dữ liệu sai ngành trước đây
+
+Manifest liệt kê đúng 24 SKU đồ gia dụng `MOC-BINH/TUI/SO/DEN/COC/NEN-*` và máy sấy tóc `MST001` cần lưu trữ. Công cụ chỉ đặt `is_deleted=TRUE`, giữ các bản ghi sản phẩm, tồn kho, phiếu nhập, stock movement, đơn hàng và đánh giá để bảo toàn lịch sử. Danh mục cũ chỉ được ẩn khi không còn sản phẩm đang bán. Không đổi tên sản phẩm trong đơn cũ thành một nhạc cụ khác.
+
+Phiếu nhập cũ vẫn là lịch sử; các thống kê tiền nhập theo thời gian có thể bao gồm phiếu mẫu cũ. Catalog và tồn kho khả dụng chỉ hiển thị sản phẩm đang hoạt động. Muốn làm sạch toàn bộ lịch sử kế toán mẫu cần một yêu cầu riêng về phạm vi dữ liệu.
+
+## Chạy công cụ
 
 - Dữ liệu: `db/seeds/moc-studio-catalog.json`.
-- Công cụ: `backend/tools/SeedMocStudioCatalog.java`; script Windows: `scripts/seed-catalog.ps1`.
-- Công cụ dùng cấu hình Aiven cục bộ đã có, không in mật khẩu. Cần build backend kèm test trước (`.\mvnw.cmd package` trong thư mục `backend`). Classpath được lấy từ báo cáo kiểm thử và loại bỏ `target/test-classes` để tránh dùng cấu hình H2.
-- Chạy thử từ thư mục gốc: `powershell -ExecutionPolicy Bypass -File scripts/seed-catalog.ps1`. Mọi dữ liệu nhập thử được rollback.
-- Lưu chính thức: `powershell -ExecutionPolicy Bypass -File scripts/seed-catalog.ps1 -Apply`. Chỉ lệnh có `-Apply` mới commit.
-- SKU đã tồn tại được bỏ qua, giữ nguyên nội dung/giá/tồn kho, kể cả sản phẩm đã lưu trữ. Chạy lại không cộng thêm tồn hoặc tạo thêm phiếu nhập cho các SKU này.
-- Cả đợt nằm trong một transaction; lỗi trước commit sẽ rollback toàn bộ. Advisory lock ngăn hai lượt chạy công cụ nhập cùng lúc.
-- Tạo sản phẩm, nhập kho và ghi stock movement thông qua service hiện có. Phiếu nhập có nguồn `Mộc Studio · dữ liệu mẫu` và ghi chú chứa `moc-studio-catalog-v1`, để phân biệt trên báo cáo.
-- Các số liệu tiền nhập và giá trị tồn kho trên dashboard sẽ bao gồm dữ liệu mẫu này. Đơn hàng, người dùng và đánh giá được giữ nguyên; sao đánh giá tăng khi có luồng mua/giao hàng/đánh giá thực tế.
-- Seed không chạy tự động khi khởi động backend hoặc khi deploy.
+- Công cụ: `backend/tools/SeedMocStudioCatalog.java`. Cần backend đã build và cấu hình Aiven riêng trong `backend/application-local.properties`.
+- Chạy thử từ thư mục gốc: `powershell -ExecutionPolicy Bypass -File scripts/seed-catalog.ps1`. Cả phần ẩn sản phẩm cũ và tạo nhạc cụ mới đều rollback.
+- Lưu chính thức: thêm `-Apply` vào lệnh trên. Toàn bộ thay đổi nằm trong một transaction.
+- SKU nhạc cụ đã có được bỏ qua, không ghi đè giá/nội dung, không cộng thêm tồn hoặc phiếu nhập. Danh sách SKU được ẩn có whitelist trong công cụ để tránh tác động sản phẩm khác.
+- So sánh tài khoản, đơn hàng và đánh giá dùng cùng snapshot transaction, tránh nhầm hoạt động từ người dùng khác với thay đổi của seed.
+- Seed không chạy tự động khi deploy hoặc khi khởi động backend.
 
-## Ảnh minh họa
+## Đồng bộ frontend
 
-Sử dụng 6 ảnh công khai từ Unsplash tương ứng với từng nhóm sản phẩm. Đã kiểm tra tải ảnh thành công và xem ảnh trước khi chọn. Các sản phẩm cùng nhóm có thể dùng chung ảnh minh họa. Mỗi sản phẩm hiện có một ảnh; chủ shop có thể thay bằng bộ ảnh thực tế trong trang chi tiết sản phẩm.
+- Trang chủ, Về chúng tôi, Cẩm nang và dữ liệu demo dùng nội dung nhạc cụ.
+- Demo dùng namespace lưu trữ mới; không ghi đè dữ liệu demo cũ trong trình duyệt.
+- Giỏ hàng API loại bỏ đúng các SKU đã ngừng bán trong manifest; nhạc cụ và số lượng còn lại được giữ nguyên.
+- Ảnh minh họa gồm 6 ảnh Unsplash đã kiểm tra và xem nội dung: guitar acoustic, guitar điện, piano, bộ trống, violin và trumpet. Sản phẩm cùng nhóm có thể dùng chung ảnh.
+- Aiven thay đổi sẽ có trên API ngay; nội dung giao diện và xử lý giỏ hàng mới cần push/redeploy frontend Vercel.
 
-Sau khi dữ liệu được lưu lên Aiven, frontend dùng API chỉ cần tải lại danh mục. Nếu mã storefront mới chưa được deploy, hãy redeploy backend/frontend để dùng đầy đủ hướng dẫn và đánh giá.
+## Kết quả sửa ngày 21/10/2026
 
-## Kết quả nhập ngày 20/10/2026
-
-- Đã commit 6 danh mục, 24 sản phẩm, 505 đơn vị tồn kho và 24 phiếu nhập mẫu, tổng giá trị 56.957.000 ₫.
-- Lần chạy lại: 0 danh mục, 0 sản phẩm, 0 đơn vị tồn kho và 0 giá trị nhập thêm; bỏ qua đủ 24 SKU đã có.
-- API local xác nhận đủ tên tiếng Việt, mô tả, hướng dẫn, giá bán và ảnh cho 24 sản phẩm. Tìm không dấu, lọc danh mục, giá và còn hàng hoạt động; giá vốn được ẩn khỏi API công khai.
-- Catalog có 25 sản phẩm, gồm sản phẩm `MST001` đã có trước đó. API Railway trả đủ 24 SKU mới.
-- Tài khoản, đơn hàng và đánh giá được giữ nguyên trong snapshot kiểm tra của transaction nhập sản phẩm; phép kiểm tra không phụ thuộc vào hoạt động đăng ký từ các phiên bên ngoài.
+- Đã lưu trữ 25 sản phẩm ngoài ngành và 7 danh mục cũ; thêm 24 nhạc cụ, 6 danh mục, 141 đơn vị tồn kho và phiếu nhập mẫu tương ứng.
+- Lần chạy thử đã rollback cả sản phẩm mới lẫn trạng thái lưu trữ cũ thành công. So sánh trong transaction xác nhận tài khoản, đơn hàng và đánh giá giữ nguyên.
+- Chạy lại sau khi lưu: bỏ qua đủ 24 SKU, không thêm danh mục/sản phẩm/tồn kho/phiếu nhập và không lưu trữ thêm bản ghi.
+- API local và proxy Vercel đều trả đúng 24 nhạc cụ, 6 danh mục; SKU cũ không còn trong tìm kiếm, máy sấy tóc không còn truy cập bằng API sản phẩm đang bán.
+- Kiểm tra chi tiết đủ mô tả, hướng dẫn, ảnh, giá bán cho 24 sản phẩm; giá vốn vẫn ẩn khỏi API công khai. Tìm không dấu hoạt động.
+- 20 kiểm thử frontend và build TypeScript/Vite thành công; có kiểm thử loại SKU cũ khỏi giỏ mà vẫn giữ nhạc cụ cùng số lượng.
