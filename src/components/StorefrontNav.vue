@@ -13,9 +13,10 @@ async function logout() {
 </script>
 <template>
   <header class="commerce-header">
-    <RouterLink to="/customer" class="commerce-brand"><span class="commerce-brand-mark">M</span><span>Mộc Studio<small>Chọn điều giản dị, sống có chủ đích.</small></span></RouterLink>
+    <RouterLink to="/customer" class="commerce-brand"><span class="commerce-brand-mark">S</span><span>ShopFlow<small>Nhạc cụ cho từng nhịp đam mê.</small></span></RouterLink>
     <nav aria-label="Điều hướng cửa hàng">
       <RouterLink to="/customer">Cửa hàng</RouterLink><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang</RouterLink>
+      <RouterLink to="/compare">So sánh</RouterLink>
       <RouterLink v-if="currentUser" to="/purchases">Đơn mua</RouterLink><RouterLink v-if="currentUser" to="/profile">Tài khoản</RouterLink>
       <RouterLink v-if="currentUser && currentUser.role !== 'CUSTOMER'" :to="operationLink">Quản lý</RouterLink>
       <button v-if="currentUser" class="button button-outline" @click="logout">Đăng xuất</button><RouterLink v-else class="button button-primary" to="/login">Đăng nhập</RouterLink>

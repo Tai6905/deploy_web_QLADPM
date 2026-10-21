@@ -20,7 +20,17 @@ public record ProductDetailResponse(
         List<ProductImageResponse> productImages,
         String usageInstructions,
         double averageRating,
-        long reviewCount) {
+        long reviewCount,
+        java.util.Map<String, String> specifications) {
+
+    public ProductDetailResponse(Long id, Long categoryId, String categoryName, String sku, String name, String slug,
+            String description, long costPrice, long listPrice, OffsetDateTime createdAt, OffsetDateTime updatedAt,
+            List<ProductVariantResponse> variants, List<ProductImageResponse> images, String usageInstructions, double averageRating, long reviewCount) {
+        this(id, categoryId, categoryName, sku, name, slug, description, costPrice, listPrice, createdAt, updatedAt, variants, images, usageInstructions, averageRating, reviewCount, java.util.Map.of());
+    }
+    public ProductDetailResponse withSpecifications(java.util.Map<String, String> specs) {
+        return new ProductDetailResponse(id, categoryId, categoryName, sku, name, slug, description, costPrice, listPrice, createdAt, updatedAt, productVariants, productImages, usageInstructions, averageRating, reviewCount, specs);
+    }
 
     public ProductDetailResponse(Long id, Long categoryId, String categoryName, String sku, String name, String slug,
             String description, long costPrice, long listPrice, OffsetDateTime createdAt, OffsetDateTime updatedAt,

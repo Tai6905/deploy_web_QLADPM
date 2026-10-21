@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as vue from "vue";
+import fs from 'node:fs';
 import { loadSource, memoryStorage } from "./load-source.mjs";
+const instruments = loadSource('src/catalog/instruments.ts', { imports: { './instruments.json': { default: JSON.parse(fs.readFileSync('src/catalog/instruments.json', 'utf8')) } } });
+const comparison = loadSource('src/comparison.ts');
 
 function workspace(api, role = "SHOP_OWNER") {
   globalThis.localStorage = memoryStorage();
@@ -17,6 +20,8 @@ function workspace(api, role = "SHOP_OWNER") {
     "./auth/session": session,
     "./auth/permissions": loadSource("src/auth/permissions.ts"),
     "./api/viewModels": loadSource("src/api/viewModels.ts"),
+    './catalog/instruments': instruments,
+    './comparison': comparison,
   } });
   return { app: setup.default.setup({}, { expose() {} }), watches, route };
 }
@@ -55,10 +60,21 @@ test("slower older catalog response cannot overwrite newer search results", asyn
     getProducts: () => new Promise((resolve) => pending.push(resolve)),
     getCategories: async () => ({ items: [] }),
   });
-  const loader = watches.find(([sources]) => Array.isArray(sources) && sources.length === 10)[1];
+  const loader = watches.find(([sources]) => Array.isArray(sources) && sources.length === 11)[1];
   const first = loader(["customer"]); const second = loader(["customer"]);
   const page = (id) => ({ items: [{ id, name: String(id), listPrice: 1, availableQuantity: 1 }], totalPages: 1 });
   pending[1](page(2)); await second;
   pending[0](page(1)); await first;
   assert.equal(app.products.value[0].id, 2);
+});
+
+test('instrument filters reach the catalog API and clear with the other storefront filters', async () => {
+  let query;
+  const { app, watches } = workspace({ getProducts: async value => { query = value; return { items: [], totalPages: 0 }; }, getCategories: async () => ({ items: [] }) });
+  app.instrumentFilters.value = { instrumentType: 'violin', violinSize: '1/2' };
+  const loader = watches.find(([sources]) => Array.isArray(sources) && sources.length === 11)[1];
+  await loader(['customer']);
+  assert.deepEqual(query.specifications, { instrumentType: 'violin', violinSize: '1/2' });
+  app.resetStoreFilters();
+  assert.deepEqual(app.instrumentFilters.value, {});
 });

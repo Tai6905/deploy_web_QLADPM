@@ -76,6 +76,11 @@ import ProductPage from "./views/ProductPage.vue";
 import StoreInfoPage from "./views/StoreInfoPage.vue";
 import ProductImage from "./components/ProductImage.vue";
 import CheckoutPage from "./views/CheckoutPage.vue";
+import ComparePage from "./views/ComparePage.vue";
+import ComparisonTray from "./components/ComparisonTray.vue";
+import InstrumentFields from "./components/InstrumentFields.vue";
+import { matchesSpecifications, type Specifications } from './catalog/instruments';
+import { comparison } from './comparison';
 import {
   toDeliveryOrder,
   toInventoryProduct,
@@ -96,6 +101,7 @@ const page = computed(() =>
   route.path === "/profile" ||
   route.path === "/purchases" ||
   route.path === "/checkout" ||
+  route.path === "/compare" ||
   route.path === "/customer"
     ? route.path.slice(1)
     : String(route.params.page || "overview"),
@@ -120,11 +126,15 @@ const categoryFilter = ref("all");
 const sortFilter = ref<"newest" | "priceAsc" | "priceDesc" | "rating">("newest");
 const minPriceFilter = ref<number | null>(null), maxPriceFilter = ref<number | null>(null);
 const ratingFilter = ref(0), stockFilter = ref(false);
+const instrumentFilters = ref<Specifications>({});
+const newProductSpecifications = ref<Specifications>({});
+const comparisonError = ref('');
+function toggleComparison(product: Product) { comparisonError.value = comparison.toggle(product); }
 const filterError = computed(() => {
   if ([minPriceFilter.value, maxPriceFilter.value].some(value => value != null && (!Number.isSafeInteger(value) || value < 0))) return 'Giá lọc phải là số nguyên VND không âm.';
   return minPriceFilter.value != null && maxPriceFilter.value != null && minPriceFilter.value > maxPriceFilter.value ? 'Giá thấp nhất phải nhỏ hơn hoặc bằng giá cao nhất.' : '';
 });
-function resetStoreFilters() { minPriceFilter.value = null; maxPriceFilter.value = null; ratingFilter.value = 0; stockFilter.value = false; categoryFilter.value = 'all'; sortFilter.value = 'newest'; search.value = ''; }
+function resetStoreFilters() { instrumentFilters.value = {}; minPriceFilter.value = null; maxPriceFilter.value = null; ratingFilter.value = 0; stockFilter.value = false; categoryFilter.value = 'all'; sortFilter.value = 'newest'; search.value = ''; }
 const apiProductLoading = ref(false);
 const apiProductSaving = ref(false);
 const apiOrderSaving = ref(false);
@@ -166,6 +176,7 @@ function toCatalogProduct(item: ProductListItem): Product {
     image: item.imageUrl || "",
     averageRating: item.averageRating,
     reviewCount: item.reviewCount,
+    specifications: item.specifications || {},
   };
 }
 
@@ -302,7 +313,7 @@ const matchingProducts = computed(() =>
       (categoryFilter.value === "all" ||
         (dataSource === "demo"
           ? product.category === categoryOptions.value.find((item) => item.id === Number(categoryFilter.value))?.name
-          : product.categoryId === Number(categoryFilter.value))),
+          : product.categoryId === Number(categoryFilter.value))) && matchesSpecifications(product.specifications, instrumentFilters.value),
   ),
 );
 const matchingOrders = computed(() =>
@@ -427,7 +438,7 @@ watch(search, (value) => {
     if (currentPage.value !== 1) void updatePagination(1);
   }, 250);
 });
-watch([categoryFilter, sortFilter, minPriceFilter, maxPriceFilter, ratingFilter, stockFilter], () => {
+watch([categoryFilter, sortFilter, minPriceFilter, maxPriceFilter, ratingFilter, stockFilter, instrumentFilters], () => {
   if (currentPage.value !== 1) void updatePagination(1);
 });
 watch(products, (items) => {
@@ -439,9 +450,10 @@ watch(page, () => {
   search.value = "";
   debouncedSearch.value = "";
   categoryFilter.value = "all";
+  instrumentFilters.value = {};
 });
 watch(
-  [page, currentPage, pageSize, debouncedSearch, categoryFilter, sortFilter, minPriceFilter, maxPriceFilter, ratingFilter, stockFilter],
+  [page, currentPage, pageSize, debouncedSearch, categoryFilter, sortFilter, minPriceFilter, maxPriceFilter, ratingFilter, stockFilter, instrumentFilters],
   async ([activePage]) => {
     const loadId = ++catalogLoadId;
     if (
@@ -469,6 +481,7 @@ watch(
           maxPrice: maxPriceFilter.value ?? undefined,
           rating: ratingFilter.value || undefined,
           inStock: stockFilter.value || undefined,
+          specifications: instrumentFilters.value,
         }),
         apiCategoriesLoaded.value
           ? Promise.resolve(null)
@@ -499,7 +512,7 @@ watch(
   [page, workspacePage, workspaceSize, workspaceSearch],
   async ([activePage]) => {
     const loadId = ++workspaceLoadId;
-    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide", "checkout"].includes(activePage)) {
+    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide", "checkout", "compare"].includes(activePage)) {
       apiWorkspaceLoading.value = false;
       return;
     }
@@ -638,6 +651,7 @@ function openModal(kind: Exclude<ModalKind, null> | "checkout", productId?: numb
     return;
   }
   modalKind.value = kind;
+  newProductSpecifications.value = {};
   selectedProductId.value =
     productId ??
     (kind === "stock" && dataSource === "api"
@@ -812,6 +826,7 @@ async function submitModal() {
           description: form.description.trim() || null,
           usageInstructions: form.usageInstructions.trim() || null,
           imageUrls: form.imageUrls.split(/\r?\n/).map(value => value.trim()).filter(Boolean),
+          specifications: newProductSpecifications.value,
         });
         search.value = "";
         categoryFilter.value = "all";
@@ -844,6 +859,7 @@ async function submitModal() {
     }
     products.value.unshift({
       id: Date.now(),
+      specifications: { ...newProductSpecifications.value },
       name: form.name.trim(),
       sku: form.sku.trim().toUpperCase(),
       category: form.category,
@@ -1316,6 +1332,7 @@ function statusClass(status: string) {
 
 <template>
   <LoginPage v-if="page === 'login'" />
+  <ComparePage v-else-if="page === 'compare'" :cart-quantities="cart" @add="addToCart" />
   <CheckoutPage v-else-if="page === 'checkout'" :cart-items="cartItems" :cart-total="cartTotal" @clear-cart="clearCart" @refresh-products="refreshCart" />
   <ProductPage v-else-if="page === 'product'" :product-id="Number(route.params.id)" :cart-quantity="cart[Number(route.params.id)] || 0" @add="addToCart" />
   <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :section="page" />
@@ -1341,7 +1358,7 @@ function statusClass(status: string) {
     <header class="storefront-header">
       <RouterLink to="/customer" class="store-brand"
         ><span class="brand-mark"><span></span><span></span><span></span></span
-        ><strong>Mộc Studio</strong></RouterLink
+        ><strong>ShopFlow</strong></RouterLink
       ><label class="store-search"
         ><Search :size="17" /><input
           v-model="search"
@@ -1359,6 +1376,7 @@ function statusClass(status: string) {
         </option>
       </select>
       <div class="store-header-actions">
+        <RouterLink to="/compare" class="text-link">So sánh ({{ comparison.selected.value.length }})</RouterLink>
         <RouterLink to="/about" class="text-link">Về chúng tôi</RouterLink><RouterLink to="/guide" class="text-link">Cẩm nang</RouterLink>
         <RouterLink
           v-if="currentUser && currentRole !== 'CUSTOMER'"
@@ -1393,9 +1411,9 @@ function statusClass(status: string) {
     </header>
     <section class="storefront-hero">
       <div class="hero-copy">
-        <span class="auth-kicker">MỘC STUDIO · ĐỒ DÙNG SỐNG XANH</span>
-        <h1>Những món đồ nhỏ,<br />cho ngày thường tốt hơn.</h1>
-        <p>Sản phẩm được chọn kỹ cho góc sống có chủ đích.</p>
+        <span class="auth-kicker">SHOPFLOW · NHẠC CỤ & ĐAM MÊ</span>
+        <h1>Chạm từng âm sắc,<br />bắt đầu đam mê.</h1>
+        <p>Khám phá, lọc và so sánh nhạc cụ theo nhu cầu của bạn.</p>
         <a class="hero-explore" href="#collection">Khám phá bộ sưu tập <ArrowRight :size="17" /></a>
       </div>
       <div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -1419,6 +1437,8 @@ function statusClass(status: string) {
           <label>Đánh giá<select v-model.number="ratingFilter"><option :value="0">Tất cả</option><option v-for="star in [5,4,3,2,1]" :key="star" :value="star">Từ {{ star }} sao</option></select></label>
           <label class="stock-filter"><input v-model="stockFilter" type="checkbox" />Chỉ còn hàng</label><button type="button" class="text-link" @click="resetStoreFilters">Xóa bộ lọc</button>
         </form>
+        <InstrumentFields v-model="instrumentFilters" filters />
+        <p v-if="comparisonError" class="form-error" role="alert">{{ comparisonError }} <RouterLink to="/compare" class="text-link">Xem lựa chọn</RouterLink></p>
         <div v-if="apiProductLoading && !filteredProducts.length" class="catalog-skeleton" role="status" aria-label="Đang tải sản phẩm">
           <div v-for="item in 6" :key="item" class="skeleton-card" aria-hidden="true"><div class="skeleton-image"></div><i></i><i></i><i></i></div>
           <span class="sr-only">Đang tải sản phẩm…</span>
@@ -1450,6 +1470,7 @@ function statusClass(status: string) {
               <span v-else>{{ product.name }}</span>
             </h3>
             <p class="store-card-rating">★ {{ product.reviewCount ? `${product.averageRating?.toFixed(1)} · ${product.reviewCount} đánh giá` : 'Chưa có đánh giá' }}</p>
+            <button type="button" class="compare-select" :class="{ selected: comparison.contains(product.id) }" :aria-pressed="comparison.contains(product.id)" @click="toggleComparison(product)">{{ comparison.contains(product.id) ? '✓ Đã chọn so sánh' : '＋ So sánh' }}</button>
             <div class="store-product-bottom">
               <strong>{{ money(product.price) }}</strong
               ><button
@@ -1464,7 +1485,7 @@ function statusClass(status: string) {
           </article>
         </div>
         <p v-if="!apiProductLoading && !apiProductError && !filteredProducts.length" class="empty-state">
-          Chưa có sản phẩm đang bán.
+          Không có sản phẩm phù hợp. Hãy thử đổi hoặc xóa bộ lọc.
         </p>
         <PaginationBar
           :page="productPage.page"
@@ -1533,7 +1554,7 @@ function statusClass(status: string) {
       </aside>
     </div>
     <footer class="storefront-footer">
-      <span>© 2026 Mộc Studio · Mộc Studio</span
+      <span>© 2026 ShopFlow</span
       ><nav class="store-footer-links"><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang mua sắm</RouterLink></nav><span>Đơn giản hơn, có chủ đích hơn.</span>
     </footer>
     <Transition name="dialog">
@@ -1554,7 +1575,7 @@ function statusClass(status: string) {
     <aside class="sidebar" :class="{ 'sidebar--open': mobileMenuOpen }">
       <div class="brand-lockup">
         <div class="brand-mark"><span></span><span></span><span></span></div>
-        <div><strong>Mộc Studio</strong><small>QUẢN LÝ CỬA HÀNG</small></div>
+        <div><strong>ShopFlow</strong><small>QUẢN LÝ CỬA HÀNG</small></div>
         <button
           class="icon-button sidebar-close"
           aria-label="Đóng menu"
@@ -1565,9 +1586,9 @@ function statusClass(status: string) {
       </div>
 
       <button class="store-switcher">
-        <span class="store-avatar">M</span>
+        <span class="store-avatar">S</span>
         <span class="store-copy"
-          ><strong>Mộc Studio</strong><small>Cửa hàng chính</small></span
+          ><strong>ShopFlow</strong><small>Cửa hàng chính</small></span
         >
         <ChevronDown :size="15" />
       </button>
@@ -1605,9 +1626,9 @@ function statusClass(status: string) {
       <div class="sidebar-bottom">
         <div class="plan-card">
           <div class="plan-icon"><Sparkles :size="16" /></div>
-          <strong>Mộc Studio</strong>
+          <strong>ShopFlow</strong>
           <p>Quản lý cửa hàng dễ dàng hơn mỗi ngày.</p>
-          <button @click="notify('Bạn đang sử dụng gói demo Mộc Studio')">
+          <button @click="notify('Bạn đang sử dụng gói demo ShopFlow')">
             Tìm hiểu thêm <ArrowRight :size="14" />
           </button>
         </div>
@@ -1642,7 +1663,7 @@ function statusClass(status: string) {
           <Menu :size="20" />
         </button>
         <div class="breadcrumbs">
-          <span>Mộc Studio</span><span class="crumb-divider">/</span
+          <span>ShopFlow</span><span class="crumb-divider">/</span
           ><strong>{{ title }}</strong>
         </div>
         <div class="topbar-tools">
@@ -2149,7 +2170,7 @@ function statusClass(status: string) {
         />
 
         <footer class="app-footer">
-          <span>© 2026 Mộc Studio</span
+          <span>© 2026 ShopFlow</span
           ><span>Vận hành cửa hàng, nhẹ nhàng hơn.</span
           ><span class="footer-status"
             ><i></i> Hệ thống hoạt động bình thường</span
@@ -2168,7 +2189,7 @@ function statusClass(status: string) {
       <form class="modal" @submit.prevent="submitModal">
         <div class="modal-heading">
           <div>
-            <span class="modal-kicker">MỘC STUDIO · KHO VẬN</span>
+            <span class="modal-kicker">SHOPFLOW · KHO VẬN</span>
             <h2>
               {{
                 modalKind === "order"
@@ -2280,6 +2301,7 @@ function statusClass(status: string) {
           <label class="form-label">Giá nhập ban đầu (VND)<input v-model.number="form.unitCost" type="number" min="0" max="9999999999" step="1" /></label>
           <label class="form-label">Giới thiệu sản phẩm<textarea v-model="form.description" rows="4" maxlength="5000" placeholder="Chất liệu, công dụng, kích thước…" /></label>
           <label class="form-label">Hướng dẫn sử dụng<textarea v-model="form.usageInstructions" rows="4" maxlength="5000" placeholder="Cách sử dụng và bảo quản riêng của sản phẩm" /></label>
+          <InstrumentFields v-model="newProductSpecifications" />
           <label class="form-label">Link ảnh (mỗi dòng một URL, tối đa 8)<textarea v-model="form.imageUrls" rows="3" placeholder="https://…/san-pham.jpg" /></label>
           <div class="image-url-previews"><img v-for="url in form.imageUrls.split(/\r?\n/).map(value => value.trim()).filter(value => /^https?:\/\//i.test(value)).slice(0,8)" :key="url" :src="url" alt="Xem trước ảnh sản phẩm" loading="lazy" /></div>
           <p class="muted-cell">Ảnh đầu tiên là ảnh đại diện. Dùng link ảnh công khai HTTP/HTTPS.</p>
@@ -2405,4 +2427,5 @@ function statusClass(status: string) {
     />
     </Transition>
   </div>
+  <ComparisonTray v-if="['customer', 'product', 'compare'].includes(page)" />
 </template>

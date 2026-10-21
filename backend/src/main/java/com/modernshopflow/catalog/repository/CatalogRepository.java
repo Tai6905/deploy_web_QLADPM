@@ -138,6 +138,11 @@ public class CatalogRepository {
 
     public PageResult<ProductListItem> findProducts(int size, int offset, Long categoryId, String search,
             Long minPrice, Long maxPrice, String sort, Integer rating, Boolean inStock) {
+        return findProducts(size, offset, categoryId, search, minPrice, maxPrice, sort, rating, inStock, java.util.Map.of());
+    }
+
+    public PageResult<ProductListItem> findProducts(int size, int offset, Long categoryId, String search,
+            Long minPrice, Long maxPrice, String sort, Integer rating, Boolean inStock, java.util.Map<String, String> specifications) {
         String filters = """
                 FROM catalog p WHERE (CAST(? AS BIGINT) IS NULL OR p.category_id = ?)
                   AND (CAST(? AS TEXT) IS NULL OR TRANSLATE(LOWER(CONCAT(p.name, ' ', p.sku, ' ', p.category_name)),
@@ -150,11 +155,30 @@ public class CatalogRepository {
                 """;
         Object[] params = {categoryId, categoryId, search, search, minPrice, minPrice, maxPrice, maxPrice, rating, rating, inStock, inStock};
         var args = new java.util.ArrayList<Object>(java.util.Arrays.asList(params));
+        for (var entry : specifications.entrySet()) {
+            filters += " AND EXISTS (SELECT 1 FROM product_specifications ps WHERE ps.product_id=p.id AND ps.spec_key=? AND ps.spec_value=?) ";
+            args.add(entry.getKey()); args.add(entry.getValue());
+        }
+        Object[] countParams = args.toArray();
         args.add(size); args.add(offset);
         var rows = jdbc.query(CATALOG_SQL + "SELECT p.*, COUNT(*) OVER() AS total_items " + filters
                 + " ORDER BY " + orderClause(sort) + " LIMIT ? OFFSET ?", this::mapProductListWithTotal, args.toArray());
-        long total = rows.isEmpty() ? jdbc.queryForObject(CATALOG_SQL + "SELECT COUNT(*) " + filters, Long.class, params) : rows.getFirst().totalItems();
+        long total = rows.isEmpty() ? jdbc.queryForObject(CATALOG_SQL + "SELECT COUNT(*) " + filters, Long.class, countParams) : rows.getFirst().totalItems();
         return new PageResult<>(rows.stream().map(ProductListWithTotal::product).toList(), total);
+    }
+
+    public java.util.Map<Long, java.util.Map<String, String>> findSpecifications(List<Long> ids) {
+        var result = new java.util.HashMap<Long, java.util.Map<String, String>>();
+        if (ids.isEmpty()) return result;
+        String placeholders = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+        jdbc.query("SELECT product_id,spec_key,spec_value FROM product_specifications WHERE product_id IN (" + placeholders + ")",
+                (org.springframework.jdbc.core.RowCallbackHandler) row -> result.computeIfAbsent(row.getLong(1), key -> new java.util.LinkedHashMap<>()).put(row.getString(2), row.getString(3)), ids.toArray());
+        return result;
+    }
+
+    public void saveSpecifications(long productId, java.util.Map<String, String> specifications) {
+        jdbc.update("DELETE FROM product_specifications WHERE product_id=?", productId);
+        specifications.forEach((key, value) -> jdbc.update("INSERT INTO product_specifications(product_id,spec_key,spec_value) VALUES(?,?,?)", productId, key, value));
     }
 
     private static final String CATALOG_SQL = """

@@ -1,0 +1,214 @@
+[
+  {
+    "sku": "MOC-ACOU-001",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "acoustic",
+      "stringCount": "6",
+      "bodyShape": "dreadnought"
+    }
+  },
+  {
+    "sku": "MOC-ACOU-002",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "acoustic",
+      "stringCount": "6",
+      "bodyShape": "concert"
+    }
+  },
+  {
+    "sku": "MOC-ACOU-003",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "acoustic",
+      "stringCount": "6",
+      "bodyShape": "grand-auditorium"
+    }
+  },
+  {
+    "sku": "MOC-ACOU-004",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "acoustic",
+      "stringCount": "6",
+      "bodyShape": "dreadnought"
+    }
+  },
+  {
+    "sku": "MOC-ELEC-001",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "electric",
+      "stringCount": "6",
+      "bodyShape": "strat"
+    }
+  },
+  {
+    "sku": "MOC-ELEC-002",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "electric",
+      "stringCount": "6",
+      "bodyShape": "tele"
+    }
+  },
+  {
+    "sku": "MOC-ELEC-003",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "electric",
+      "stringCount": "6",
+      "bodyShape": "single-cut"
+    }
+  },
+  {
+    "sku": "MOC-ELEC-004",
+    "specifications": {
+      "instrumentType": "guitar",
+      "guitarType": "electric",
+      "stringCount": "6",
+      "bodyShape": "strat"
+    }
+  },
+  {
+    "sku": "MOC-PIANO-001",
+    "specifications": {
+      "instrumentType": "piano",
+      "pianoType": "upright",
+      "keyCount": "88",
+      "keyAction": "hammer"
+    }
+  },
+  {
+    "sku": "MOC-PIANO-002",
+    "specifications": {
+      "instrumentType": "piano",
+      "pianoType": "upright",
+      "keyCount": "88",
+      "keyAction": "hammer"
+    }
+  },
+  {
+    "sku": "MOC-PIANO-003",
+    "specifications": {
+      "instrumentType": "piano",
+      "pianoType": "upright",
+      "keyCount": "88",
+      "keyAction": "hammer"
+    }
+  },
+  {
+    "sku": "MOC-PIANO-004",
+    "specifications": {
+      "instrumentType": "piano",
+      "pianoType": "upright",
+      "keyCount": "88",
+      "keyAction": "hammer"
+    }
+  },
+  {
+    "sku": "MOC-DRUM-001",
+    "specifications": {
+      "instrumentType": "drums",
+      "drumType": "acoustic",
+      "pieceCount": "5",
+      "shellMaterial": "poplar"
+    }
+  },
+  {
+    "sku": "MOC-DRUM-002",
+    "specifications": {
+      "instrumentType": "drums",
+      "drumType": "acoustic",
+      "pieceCount": "5",
+      "shellMaterial": "birch"
+    }
+  },
+  {
+    "sku": "MOC-DRUM-003",
+    "specifications": {
+      "instrumentType": "drums",
+      "drumType": "acoustic",
+      "pieceCount": "6",
+      "shellMaterial": "maple"
+    }
+  },
+  {
+    "sku": "MOC-DRUM-004",
+    "specifications": {
+      "instrumentType": "drums",
+      "drumType": "acoustic",
+      "pieceCount": "6",
+      "shellMaterial": "mahogany"
+    }
+  },
+  {
+    "sku": "MOC-VIOL-001",
+    "specifications": {
+      "instrumentType": "violin",
+      "violinType": "acoustic",
+      "violinSize": "1/2",
+      "topWood": "spruce"
+    }
+  },
+  {
+    "sku": "MOC-VIOL-002",
+    "specifications": {
+      "instrumentType": "violin",
+      "violinType": "acoustic",
+      "violinSize": "3/4",
+      "topWood": "spruce"
+    }
+  },
+  {
+    "sku": "MOC-VIOL-003",
+    "specifications": {
+      "instrumentType": "violin",
+      "violinType": "acoustic",
+      "violinSize": "4/4",
+      "topWood": "spruce"
+    }
+  },
+  {
+    "sku": "MOC-VIOL-004",
+    "specifications": {
+      "instrumentType": "violin",
+      "violinType": "acoustic",
+      "violinSize": "4/4",
+      "topWood": "spruce"
+    }
+  },
+  {
+    "sku": "MOC-TRUMP-001",
+    "specifications": {
+      "instrumentType": "wind",
+      "windType": "trumpet",
+      "tuning": "Bb"
+    }
+  },
+  {
+    "sku": "MOC-TRUMP-002",
+    "specifications": {
+      "instrumentType": "wind",
+      "windType": "trumpet",
+      "tuning": "Bb"
+    }
+  },
+  {
+    "sku": "MOC-TRUMP-003",
+    "specifications": {
+      "instrumentType": "wind",
+      "windType": "trumpet",
+      "tuning": "Bb"
+    }
+  },
+  {
+    "sku": "MOC-TRUMP-004",
+    "specifications": {
+      "instrumentType": "wind",
+      "windType": "trumpet",
+      "tuning": "Bb"
+    }
+  }
+]

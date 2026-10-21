@@ -1,0 +1,28 @@
+{
+  "types": [
+    { "value": "guitar", "label": "Guitar", "fields": [
+      { "key": "guitarType", "label": "Loại guitar", "options": [{"value":"acoustic","label":"Acoustic"},{"value":"classical","label":"Classic (dây nylon)"},{"value":"electric","label":"Guitar điện"},{"value":"bass","label":"Bass"}] },
+      { "key": "stringCount", "label": "Số dây", "options": [{"value":"4","label":"4 dây"},{"value":"5","label":"5 dây"},{"value":"6","label":"6 dây"},{"value":"7","label":"7 dây"},{"value":"12","label":"12 dây"}] },
+      { "key": "bodyShape", "label": "Dáng đàn", "options": [{"value":"dreadnought","label":"Dreadnought"},{"value":"concert","label":"Concert"},{"value":"grand-auditorium","label":"Grand Auditorium"},{"value":"strat","label":"Strat-style"},{"value":"tele","label":"Tele-style"},{"value":"single-cut","label":"Single cut"}] }
+    ] },
+    { "value": "piano", "label": "Piano / Keyboard", "fields": [
+      { "key": "pianoType", "label": "Loại đàn phím", "options": [{"value":"upright","label":"Piano cơ đứng"},{"value":"grand","label":"Grand piano"},{"value":"digital","label":"Piano điện"},{"value":"keyboard","label":"Keyboard"}] },
+      { "key": "keyCount", "label": "Số phím", "options": [{"value":"61","label":"61 phím"},{"value":"76","label":"76 phím"},{"value":"88","label":"88 phím"}] },
+      { "key": "keyAction", "label": "Cơ chế phím", "options": [{"value":"unweighted","label":"Phím nhẹ"},{"value":"semi-weighted","label":"Bán nặng"},{"value":"hammer","label":"Cơ chế búa"}] }
+    ] },
+    { "value": "drums", "label": "Trống / Bộ gõ", "fields": [
+      { "key": "drumType", "label": "Loại trống", "options": [{"value":"acoustic","label":"Trống acoustic"},{"value":"electronic","label":"Trống điện tử"},{"value":"cajon","label":"Cajon"}] },
+      { "key": "pieceCount", "label": "Số trống trong bộ", "options": [{"value":"3","label":"3 trống"},{"value":"4","label":"4 trống"},{"value":"5","label":"5 trống"},{"value":"6","label":"6 trống"},{"value":"7","label":"7 trống"}] },
+      { "key": "shellMaterial", "label": "Chất liệu thân trống", "options": [{"value":"maple","label":"Gỗ maple"},{"value":"birch","label":"Gỗ birch"},{"value":"poplar","label":"Gỗ poplar"},{"value":"mahogany","label":"Gỗ mahogany"}] }
+    ] },
+    { "value": "violin", "label": "Violin", "fields": [
+      { "key": "violinType", "label": "Loại violin", "options": [{"value":"acoustic","label":"Violin acoustic"},{"value":"electric","label":"Violin điện"}] },
+      { "key": "violinSize", "label": "Cỡ đàn", "options": [{"value":"1/8","label":"1/8"},{"value":"1/4","label":"1/4"},{"value":"1/2","label":"1/2"},{"value":"3/4","label":"3/4"},{"value":"4/4","label":"4/4"}] },
+      { "key": "topWood", "label": "Gỗ mặt đàn", "options": [{"value":"spruce","label":"Gỗ spruce"},{"value":"maple","label":"Gỗ maple"}] }
+    ] },
+    { "value": "wind", "label": "Kèn / Sáo", "fields": [
+      { "key": "windType", "label": "Loại nhạc cụ hơi", "options": [{"value":"trumpet","label":"Trumpet"},{"value":"saxophone","label":"Saxophone"},{"value":"flute","label":"Flute"},{"value":"clarinet","label":"Clarinet"}] },
+      { "key": "tuning", "label": "Tông nhạc cụ", "options": [{"value":"Bb","label":"Si giáng (B♭)"},{"value":"Eb","label":"Mi giáng (E♭)"},{"value":"C","label":"Đô (C)"},{"value":"F","label":"Fa (F)"}] }
+    ] }
+  ]
+}

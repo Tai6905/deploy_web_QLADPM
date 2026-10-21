@@ -1,4 +1,5 @@
 export type Product = {
+  specifications?: Record<string, string>;
   averageRating?: number;
   reviewCount?: number;
   unitCost?: number | null;

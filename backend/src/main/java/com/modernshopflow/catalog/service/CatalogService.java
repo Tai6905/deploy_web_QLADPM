@@ -83,25 +83,34 @@ public class CatalogService {
 
     public PageResult<ProductListItem> listProducts(int page, int size, Long categoryId, String search,
             Long minPrice, Long maxPrice, Integer rating, String sort, Boolean inStock) {
+        return listProducts(page, size, categoryId, search, minPrice, maxPrice, rating, sort, inStock, java.util.Map.of());
+    }
+
+    public PageResult<ProductListItem> listProducts(int page, int size, Long categoryId, String search,
+            Long minPrice, Long maxPrice, Integer rating, String sort, Boolean inStock, java.util.Map<String, String> filters) {
+        var validFilters = InstrumentSpecifications.validate(filters);
         validatePriceRange(minPrice, maxPrice);
         if (rating != null && (rating < 1 || rating > 5)) {
             throw new IllegalArgumentException("rating must be between 1 and 5");
         }
         String normalizedSearch = search == null || search.isBlank() ? null : Normalizer.normalize(search.trim().toLowerCase(Locale.ROOT), Normalizer.Form.NFD).replaceAll("\\p{M}+", "").replace('đ', 'd');
         String normalizedSort = normalizeSort(sort);
-        return repository.findProducts(
+        var result = repository.findProducts(
                 size,
                 pageOffset(page, size),
                 categoryId,
                 normalizedSearch,
                 minPrice,
                 maxPrice,
-                normalizedSort, rating, inStock);
+                normalizedSort, rating, inStock, validFilters);
+        var specs = repository.findSpecifications(result.items().stream().map(ProductListItem::id).toList());
+        return new PageResult<>(result.items().stream().map(item -> item.withSpecifications(specs.getOrDefault(item.id(), java.util.Map.of()))).toList(), result.totalItems());
     }
 
     public ProductDetailResponse getProduct(long id) {
-        return repository.findProduct(id)
+        var product = repository.findProduct(id)
                 .orElseThrow(() -> new CatalogNotFoundException("Product " + id + " was not found"));
+        return product.withSpecifications(repository.findSpecifications(java.util.List.of(id)).getOrDefault(id, java.util.Map.of()));
     }
 
     @Transactional
@@ -129,10 +138,13 @@ public class CatalogService {
         getProduct(id);
         var images = validatedImages(request.imageUrls());
         repository.updateProductContent(id, request.description(), request.usageInstructions(), images);
+        // Omitted field preserves specifications for older clients; {} explicitly clears them.
+        if (request.specifications() != null) repository.saveSpecifications(id, InstrumentSpecifications.validate(request.specifications()));
         return getProduct(id);
     }
 
     private ProductDetailResponse createProductWithImages(ProductCreateRequest request, java.util.List<String> images) {
+        var specifications = InstrumentSpecifications.validate(request.specifications());
         if (request.listPrice() == null || request.listPrice().signum() <= 0
                 || request.listPrice().stripTrailingZeros().scale() > 0
                 || (request.costPrice() != null && (request.costPrice().signum() < 0
@@ -159,6 +171,7 @@ public class CatalogService {
         }
         repository.insertDefaultVariant(productId);
         repository.saveProductContent(productId, request.usageInstructions(), images);
+        repository.saveSpecifications(productId, specifications);
         return getProduct(productId);
     }
 

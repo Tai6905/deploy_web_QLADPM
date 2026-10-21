@@ -55,6 +55,13 @@ class ProductionStartupCheck {
                 throw new IllegalStateException("Production startup check failed; inspect the sanitized log above.");
             }
             System.out.println("PASS: production JAR starts with DB environment variables, reads PORT, and serves the Railway healthcheck.");
+            var catalogRequest = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/products?instrumentType=guitar&spec.stringCount=6&size=2"))
+                    .timeout(Duration.ofSeconds(15)).build();
+            var catalogResponse = client.send(catalogRequest, HttpResponse.BodyHandlers.ofString());
+            if (catalogResponse.statusCode() != 200 || !catalogResponse.body().contains("\"specifications\""))
+                throw new IllegalStateException("Production instrument filtering failed: HTTP " + catalogResponse.statusCode());
+            if (catalogResponse.body().contains("\"costPrice\"")) throw new IllegalStateException("Public catalog exposed product cost");
+            System.out.println("PASS: production catalog accepts instrument filters and includes public specifications without product costs.");
             String frontendOrigin = args.length > 0 ? args[0] : "https://deploy-web-qladpm.vercel.app";
             for (String origin : new String[]{frontendOrigin, "https://untrusted.invalid"}) {
                 var preflight = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/auth/register"))

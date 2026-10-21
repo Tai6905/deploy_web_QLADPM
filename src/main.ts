@@ -7,15 +7,18 @@ import "./style.css";
 import "./motion.css";
 import "./commerce.css";
 import "./checkout.css";
+import "./instruments.css";
 import { installMotion } from "./motion";
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, _from, saved) { return saved || (to.hash ? { el: to.hash } : { top: 0 }); },
   routes: [
     { path: "/", redirect: () => landingPage(currentRole.value) },
     { path: "/login", component: App },
     { path: "/forbidden", component: App },
     { path: "/customer", component: App },
+    { path: "/compare", component: App },
     { path: "/about", component: App },
     { path: "/guide", component: App },
     { path: "/product/:id(\\d+)", component: App },
@@ -38,7 +41,7 @@ router.beforeEach(async (to) => {
     if (currentRole.value) return landingPage(currentRole.value);
     return true;
   }
-  if (page === "forbidden" || page === "customer" || page === "about" || page === "guide" || /^product\/\d+$/.test(page)) return true;
+  if (page === "forbidden" || page === "customer" || page === "compare" || page === "about" || page === "guide" || /^product\/\d+$/.test(page)) return true;
   if (!currentRole.value)
     return { path: "/login", query: { redirect: to.fullPath } };
   return canAccessPage(page, currentRole.value) ? true : "/forbidden";
@@ -46,7 +49,7 @@ router.beforeEach(async (to) => {
 
 window.addEventListener("shopflow:session-expired", () => {
   const route = router.currentRoute.value;
-  if (!["/", "/login", "/customer", "/forbidden"].includes(route.path)) {
+  if (!["/", "/login", "/customer", "/compare", "/forbidden"].includes(route.path)) {
     void router.replace({ path: "/login", query: { redirect: route.fullPath } });
   }
 });

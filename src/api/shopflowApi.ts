@@ -16,6 +16,7 @@ export type CheckoutQuote = { subtotalAmount: number; discountAmount: number; to
 export type CheckoutVoucher = { code: string; title: string; minimum: number; type: string; value: number; maximum: number | null };
 export type CheckoutRequest = { shippingAddress: ShippingAddress; contactEmail?: string; paymentMethod: PaymentMethod; items: { productId: number; quantity: number }[]; voucherCode?: string | null; checkoutKey: string; saveAddress: boolean; addressId?: number | null; makeDefault: boolean; expectedTotal: number };
 export type PageQuery = {
+  specifications?: Record<string, string>;
   page: number;
   size: number;
   query?: string;
@@ -52,6 +53,7 @@ export type CreateEmployeeRequest = {
   role?: "SALES_STAFF" | "WAREHOUSE";
 };
 export type ProductCreateRequest = {
+  specifications?: Record<string, string>;
   categoryId: number;
   sku: string;
   name: string;
@@ -62,6 +64,7 @@ export type ProductCreateRequest = {
   imageUrls?: string[];
 };
 export type ProductListItem = {
+  specifications?: Record<string, string>;
   id: number;
   categoryId: number;
   categoryName: string;
@@ -76,6 +79,7 @@ export type ProductListItem = {
   reviewCount: number;
 };
 export type ProductDetail = {
+  specifications?: Record<string, string>;
   usageInstructions: string | null;
   averageRating: number;
   reviewCount: number;
@@ -273,6 +277,9 @@ function queryString(query: PageQuery) {
   if (query.sort) params.set("sort", query.sort);
   if (query.rating !== undefined) params.set("rating", String(query.rating));
   if (query.inStock !== undefined) params.set("inStock", String(query.inStock));
+  Object.entries(query.specifications || {}).forEach(([key, value]) => {
+    if (value) params.set(key === 'instrumentType' ? key : `spec.${key}`, value);
+  });
   return params.toString();
 }
 
@@ -305,7 +312,7 @@ export interface ShopflowApi {
   createEmployee(input: CreateEmployeeRequest): Promise<SessionUser>;
   getProducts(query: PageQuery): Promise<ApiPage<ProductListItem>>;
   createProduct(input: ProductCreateRequest): Promise<ProductDetail>;
-  updateProductContent(id: number, input: { description: string | null; usageInstructions: string | null; imageUrls: string[] }): Promise<ProductDetail>;
+  updateProductContent(id: number, input: { description: string | null; usageInstructions: string | null; imageUrls: string[]; specifications?: Record<string, string> }): Promise<ProductDetail>;
   getProduct(id: number): Promise<ProductDetail>;
   getCategories(query: Pick<PageQuery, "page" | "size">): Promise<ApiPage<Category>>;
   createCategory(input: CategoryInput): Promise<Category>;

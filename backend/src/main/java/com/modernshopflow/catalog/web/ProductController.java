@@ -38,11 +38,17 @@ public class ProductController {
             @RequestParam(required = false) Long maxPrice,
             @RequestParam(required = false) Integer rating,
             @RequestParam(required = false) String sort,
-            @RequestParam(required = false) Boolean inStock) {
+            @RequestParam(required = false) Boolean inStock,
+            @RequestParam java.util.Map<String, String> parameters) {
         int requestedPage = page == null ? 0 : page;
         int requestedSize = size != null ? size : limit != null ? limit : 20;
+        var specifications = new java.util.LinkedHashMap<String, String>();
+        parameters.forEach((key, value) -> {
+            if (key.equals("instrumentType")) specifications.put(key, value);
+            else if (key.startsWith("spec.")) specifications.put(key.substring(5), value);
+        });
         PageResult<ProductListItem> result = service.listProducts(
-                requestedPage, requestedSize, categoryId, search, minPrice, maxPrice, rating, sort, inStock);
+                requestedPage, requestedSize, categoryId, search, minPrice, maxPrice, rating, sort, inStock, specifications);
         return PageResponse.fromPageResult(result, requestedPage, requestedSize);
     }
 

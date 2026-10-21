@@ -72,6 +72,51 @@ class AuthHttpIntegrationTest {
         assertEquals(200, response.statusCode(), response.body());
     }
 
+    @Test void instrumentFiltersApplyBeforePaginationAndRejectIncompatibleSpecifications() throws Exception {
+        long first = checkoutProduct(), second = checkoutProduct(), third = checkoutProduct();
+        long category = jdbc.queryForObject("SELECT category_id FROM products WHERE id=?", Long.class, first);
+        jdbc.update("UPDATE products SET category_id=? WHERE id IN (?,?)", category, second, third);
+        for (long product : new long[] { first, second, third }) {
+            jdbc.update("INSERT INTO product_specifications VALUES(?,'instrumentType','guitar')", product);
+            jdbc.update("INSERT INTO product_specifications VALUES(?,'stringCount',?)", product, product == third ? "12" : "6");
+        }
+        var guest = client();
+        String query = "/products?size=1&categoryId=" + category + "&instrumentType=guitar&spec.stringCount=6";
+        var response = request(guest, query, "GET", null, null);
+        assertEquals(200, response.statusCode(), response.body());
+        var body = json.readTree(response.body());
+        assertEquals(2, body.get("totalItems").asInt());
+        assertEquals(1, body.get("items").size());
+        assertEquals("6", body.get("items").get(0).get("specifications").get("stringCount").asText());
+        var emptyPage = request(guest, query + "&page=99", "GET", null, null);
+        assertEquals(2, json.readTree(emptyPage.body()).get("totalItems").asInt());
+        assertEquals(0, json.readTree(emptyPage.body()).get("items").size());
+        assertEquals(400, request(guest, "/products?instrumentType=piano&spec.stringCount=6", "GET", null, null).statusCode());
+        assertEquals(400, request(guest, "/products?instrumentType=guitar&spec.stringCount=999", "GET", null, null).statusCode());
+        assertEquals(400, request(guest, "/products?spec.stringCount=6", "GET", null, null).statusCode());
+        jdbc.update("UPDATE products SET is_deleted=true WHERE id=?", first);
+        assertEquals(1, json.readTree(request(guest, query, "GET", null, null).body()).get("totalItems").asInt());
+    }
+
+    @Test void ownerCanSaveInstrumentSpecificationsButCustomerCannotAndOlderClientsPreserveThem() throws Exception {
+        long product = checkoutProduct();
+        var owner = user("SHOP_OWNER"); var ownerClient = client(); login(ownerClient, owner.getEmail());
+        String token = csrf(ownerClient), path = "/products/" + product + "/content";
+        String valid = "{\"description\":\"Violin\",\"imageUrls\":[],\"specifications\":{\"instrumentType\":\"violin\",\"violinSize\":\"1/2\"}}";
+        var response = request(ownerClient, path, "PUT", valid, token);
+        assertEquals(200, response.statusCode(), response.body());
+        assertEquals("1/2", json.readTree(response.body()).get("specifications").get("violinSize").asText());
+        assertFalse(json.readTree(response.body()).has("costPrice"));
+        assertEquals(200, request(ownerClient, path, "PUT", "{\"description\":\"Updated\",\"imageUrls\":[]}", token).statusCode());
+        assertEquals("1/2", json.readTree(request(client(), "/products/" + product, "GET", null, null).body()).get("specifications").get("violinSize").asText());
+        assertEquals(400, request(ownerClient, path, "PUT", valid.replace("1/2", "invalid"), token).statusCode());
+        assertEquals("Updated", jdbc.queryForObject("SELECT description FROM products WHERE id=?", String.class, product));
+        var customer = user("CUSTOMER"); var customerClient = client(); login(customerClient, customer.getEmail());
+        assertEquals(403, request(customerClient, path, "PUT", valid, csrf(customerClient)).statusCode());
+        assertEquals(200, request(ownerClient, path, "PUT", "{\"imageUrls\":[],\"specifications\":{}}", token).statusCode());
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM product_specifications WHERE product_id=?", Integer.class, product));
+    }
+
     long checkoutProduct() {
         String tag=UUID.randomUUID().toString();
         jdbc.update("INSERT INTO categories(name,slug) VALUES('Checkout',?)",tag);

@@ -75,6 +75,11 @@
     <build>
         <resources>
             <resource>
+                <directory>../src/catalog</directory>
+                <targetPath>catalog</targetPath>
+                <includes><include>instruments.json</include></includes>
+            </resource>
+            <resource>
                 <directory>src/main/resources</directory>
             </resource>
             <resource>
