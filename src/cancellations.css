@@ -1,0 +1,41 @@
+.cancellations-container { max-width: 1240px; }
+.cancellations-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 18px 0 28px; }
+.cancellations-heading h1 { margin: 12px 0; font: 500 clamp(26px, 3.5vw, 38px)/1.3 var(--font-display); }
+.cancellations-heading p { color: #647363; line-height: 1.8; max-width: 640px; }
+.cancellation-card { margin-bottom: 24px; padding: 28px; border: 1px solid #dfe7d8; border-radius: 16px; background: #fff; }
+.cancellation-card h2 { margin: 10px 0; font: 500 22px/1.4 var(--font-display); }
+.cancellation-card .form-label { margin: 16px 0; }
+.cancellation-notice { padding: 16px 18px; background: #fff8ec; border: 1px solid #eadbbc; border-radius: 10px; color: #73532f; font-size: 13px; line-height: 1.85; }
+.cancellation-products { padding: 0; list-style: none; }
+.cancellation-products li { display: flex; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid #edf0e7; font-size: 13px; line-height: 1.7; }
+.cancellation-products strong { white-space: nowrap; }
+.cancellation-total { display: flex; justify-content: space-between; gap: 16px; margin: 20px 0; font-size: 15px; }
+.cancellation-form fieldset { min-width: 0; padding: 0; margin: 24px 0; border: 0; }
+.cancellation-form legend { margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+.cancellation-form textarea { width: 100%; resize: vertical; min-height: 100px; }
+.cancellation-form small { color: #687861; }
+.cancellation-reasons { display: flex; flex-wrap: wrap; gap: 9px; }
+.cancellation-reasons button { padding: 10px 14px; border: 1px solid #dbe4d3; border-radius: 8px; background: white; color: #4c6244; font: inherit; font-size: 12px; cursor: pointer; }
+.cancellation-reasons button.selected { background: #edf5e5; border-color: #6e935b; }
+.cancellation-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.button-cancel-order { color: white; background: #a23d35; border: 1px solid #a23d35; }
+.button-cancel-order:hover:not(:disabled) { background: #852e28; }
+.button-cancel-order:disabled { opacity: .5; cursor: not-allowed; }
+.cancellation-link { display: inline-flex; margin: 6px 10px 6px 0; border: 1px solid #e4c9bf; color: #9a3c31; background: #fff6f1; }
+.cancellation-receipt { margin: 20px 0; padding: 20px; border-radius: 12px; background: #f0f4ec; border-left: 3px solid #778c6b; font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
+.cancellation-receipt p { margin: 8px 0; white-space: pre-line; }
+.cancellation-scope { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+.cancellation-scope a { padding: 11px 16px; border-radius: 9px; border: 1px solid #d8e3cf; font-size: 13px; }
+.cancellation-scope a.selected { background: #264d3a; color: white; border-color: #264d3a; }
+.cancellations-table { min-width: 820px; width: 100%; }
+.cancellations-table td { vertical-align: top; font-size: 13px; line-height: 1.7; }
+.cancellations-table td:nth-child(3) { max-width: 300px; white-space: pre-line; overflow-wrap: anywhere; }
+.cancellations-table small { display: block; margin-top: 7px; color: #6b7964; font-size: 11px; }
+.cancellations-table .text-link { white-space: nowrap; }
+.cancellation-reasons button:focus-visible, .button-cancel-order:focus-visible, .cancellation-link:focus-visible { outline: 3px solid #9bb789; outline-offset: 3px; }
+@media (max-width: 720px) {
+  .cancellations-heading { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .cancellation-card { padding: 20px 16px; }
+  .cancellation-products li { flex-direction: column; gap: 4px; }
+  .cancellation-actions .button { width: 100%; justify-content: center; }
+}

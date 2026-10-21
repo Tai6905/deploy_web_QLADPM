@@ -104,9 +104,14 @@ public class OrderService {
     }
 
     public PageResult<OrderSummary> list(int page, int size, String search) {
+        return list(page,size,search,null);
+    }
+
+    public PageResult<OrderSummary> list(int page, int size, String search, String status) {
         int offset = pageOffset(page, size);
         String normalizedSearch = search == null || search.isBlank() ? null : search.trim();
-        return new PageResult<>(repository.listOrders(size, offset, normalizedSearch), repository.countOrders(normalizedSearch));
+        validateStatus(status);
+        return new PageResult<>(repository.listOrders(size, offset, normalizedSearch,null,status), repository.countOrders(normalizedSearch,null,status));
     }
 
     public OrderResponse getByReference(UUID orderRef) {
@@ -114,9 +119,19 @@ public class OrderService {
     }
 
     public PageResult<OrderSummary> listMine(long customerId, int page, int size, String search) {
+        return listMine(customerId,page,size,search,null);
+    }
+
+    public PageResult<OrderSummary> listMine(long customerId, int page, int size, String search, String status) {
         int offset = pageOffset(page, size);
         String query = search == null || search.isBlank() ? null : search.trim();
-        return new PageResult<>(repository.listOrders(size, offset, query, customerId), repository.countOrders(query, customerId));
+        validateStatus(status);
+        return new PageResult<>(repository.listOrders(size, offset, query, customerId,status), repository.countOrders(query, customerId,status));
+    }
+    public OrderResponse get(long id) { return repository.findOrder(id); }
+    private void validateStatus(String status) {
+        if(status!=null && !Set.of("PENDING_PAYMENT","PAID","PAYMENT_FAILED","CANCELLED").contains(status))
+            throw new IllegalArgumentException("Trạng thái đơn hàng không hợp lệ.");
     }
     public OrderResponse getMine(long id, long customerId) { return repository.findOwnedOrder(id, customerId); }
     public OrderResponse getMineByReference(UUID reference, long customerId) { return repository.findOwnedOrderByRef(reference, customerId); }

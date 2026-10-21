@@ -62,7 +62,17 @@ public final class OrderDtos {
             ShippingAddress shippingAddress,
             List<OrderLineResponse> items,
             OffsetDateTime createdAt,
-            long subtotalAmount, long discountAmount, String voucherCode) {}
+            long subtotalAmount, long discountAmount, String voucherCode, CancellationInfo cancellation) {
+        public OrderResponse(Long id, UUID orderRef, String status, String deliveryStatus, String paymentMethod, long totalAmount,
+                Customer customer, ShippingAddress shippingAddress, List<OrderLineResponse> items, OffsetDateTime createdAt,
+                long subtotalAmount, long discountAmount, String voucherCode) {
+            this(id,orderRef,status,deliveryStatus,paymentMethod,totalAmount,customer,shippingAddress,items,createdAt,subtotalAmount,discountAmount,voucherCode,null);
+        }
+    }
+
+    public record CancelOrderRequest(@NotBlank @Size(max=500) String reason) {}
+    public record CancellationInfo(String reason, OffsetDateTime cancelledAt, String actorKind,
+            String paymentOutcome, long refundAmount) {}
 
     public record OrderSummary(
             Long id,
@@ -75,5 +85,13 @@ public final class OrderDtos {
             String paymentStatus,
             String deliveryStatus,
             OffsetDateTime createdAt,
-            String paymentMethod) {}
+            String paymentMethod, CancellationInfo cancellation) {
+        public OrderSummary(Long id, UUID orderRef, String customer, String product, int quantity, long totalAmount,
+                String status, String paymentStatus, String deliveryStatus, OffsetDateTime createdAt, String paymentMethod) {
+            this(id,orderRef,customer,product,quantity,totalAmount,status,paymentStatus,deliveryStatus,createdAt,paymentMethod,null);
+        }
+        public OrderSummary withCancellation(CancellationInfo info) {
+            return new OrderSummary(id,orderRef,customer,product,quantity,totalAmount,status,paymentStatus,deliveryStatus,createdAt,paymentMethod,info);
+        }
+    }
 }

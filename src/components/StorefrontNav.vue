@@ -18,6 +18,7 @@ async function logout() {
       <RouterLink to="/customer">Cửa hàng</RouterLink><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang</RouterLink>
       <RouterLink to="/compare">So sánh</RouterLink>
       <RouterLink v-if="currentUser" to="/purchases">Đơn mua</RouterLink><RouterLink v-if="currentUser" to="/profile">Tài khoản</RouterLink>
+      <RouterLink v-if="currentUser" to="/cancellations?scope=mine">Đơn đã hủy</RouterLink>
       <RouterLink v-if="currentUser && currentUser.role !== 'CUSTOMER'" :to="operationLink">Quản lý</RouterLink>
       <button v-if="currentUser" class="button button-outline" @click="logout">Đăng xuất</button><RouterLink v-else class="button button-primary" to="/login">Đăng nhập</RouterLink>
     </nav>

@@ -21,11 +21,13 @@ Frontend chạy trên Vercel, backend Spring Boot chạy trên Railway, PostgreS
 
 Không đặt mật khẩu database trong biến `VITE_*`. Không cần tạo database khác hoặc tạo lại bốn tài khoản: chúng đã có trên Aiven. Profile `production` được bật bằng lệnh chạy và dùng cổng `PORT` Railway cấp; nó không tự áp dụng migration lên database hiện có.
 
-Bản nâng cấp Mộc Studio cần migration thứ 10: `enhance_storefront_and_receiving.sql` cho giá nhập, hướng dẫn sử dụng và đánh giá. Áp dụng bằng công cụ schema initializer trước khi deploy backend mới; xem [cách sử dụng và cập nhật storefront](storefront-upgrade.md). Không xóa hoặc tạo lại database.
+Bản nâng cấp ShopFlow cần migration thứ 10: `enhance_storefront_and_receiving.sql` cho giá nhập, hướng dẫn sử dụng và đánh giá. Áp dụng bằng công cụ schema initializer trước khi deploy backend mới; xem [cách sử dụng và cập nhật storefront](storefront-upgrade.md). Không xóa hoặc tạo lại database.
 
 Trang thanh toán riêng cần thêm migration thứ 11: `add_checkout_addresses_and_vouchers.sql`. Xem [hướng dẫn checkout](checkout.md) cho địa chỉ lưu theo tài khoản, voucher, COD và phương thức thanh toán mô phỏng. Deploy cả backend và frontend của bản checkout sau khi schema đã sẵn sàng.
 
 Bộ lọc nhạc cụ và so sánh cần migration thứ 12: `add_instrument_specifications.sql`. Xem [hướng dẫn bộ lọc và so sánh](instrument-filters-and-comparison.md) để cập nhật Aiven bằng `scripts/upgrade-instruments.ps1 -Apply` trước khi deploy backend mới. Commit cả thư mục `src/catalog` vì backend và frontend dùng chung danh sách thông số.
+
+Chức năng hủy đơn cần migration `add_order_cancellations.sql`. Chạy `scripts/check-order-cancellations.ps1` sau khi build/test backend để cập nhật Aiven và kiểm tra bằng dữ liệu rollback trước khi deploy backend mới. Xem [trang hủy đơn và quy tắc xử lý](order-cancellations.md). Sau đó deploy cả Railway và Vercel.
 
 4. Deploy/redeploy sau khi lưu Variables. Khi trạng thái healthy, vào **Settings → Networking → Generate Domain**. Nếu được hỏi target port, nhập đúng cổng `PORT` của service/log Tomcat.
 5. Mở `https://TEN-BACKEND.up.railway.app/api/auth/session`. Phải trả JSON có `authenticated: false`, không phải lỗi 502. Truy cập `/` trực tiếp có thể nhận 401 vì backend không phục vụ giao diện.

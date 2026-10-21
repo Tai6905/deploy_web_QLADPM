@@ -27,16 +27,22 @@ public class CustomerOrderController {
     private final DeliveryRepository deliveries;
     private final ReturnRepository returnRepository;
     private final ReturnService returns;
+    private final com.modernshopflow.catalog.orders.OrderCancellationService cancellations;
     public CustomerOrderController(AccountService accounts, OrderService orders, DeliveryRepository deliveries,
-            ReturnRepository returnRepository, ReturnService returns) {
+            ReturnRepository returnRepository, ReturnService returns, com.modernshopflow.catalog.orders.OrderCancellationService cancellations) {
         this.accounts = accounts; this.orders = orders; this.deliveries = deliveries;
         this.returnRepository = returnRepository; this.returns = returns;
+        this.cancellations=cancellations;
     }
     @GetMapping public PageResponse<OrderSummary> list(Authentication authentication,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
-            @RequestParam(name = "q", required = false) String query) {
+            @RequestParam(name = "q", required = false) String query, @RequestParam(required=false) String status) {
         var user = accounts.requireUser(authentication);
-        return PageResponse.fromPageResult(orders.listMine(user.getId(), page, size, query), page, size);
+        return PageResponse.fromPageResult(orders.listMine(user.getId(), page, size, query,status), page, size);
+    }
+    @PostMapping("/{id}/cancel") public OrderResponse cancel(Authentication authentication,@PathVariable long id,
+            @Valid @RequestBody com.modernshopflow.catalog.orders.OrderDtos.CancelOrderRequest request) {
+        return cancellations.cancelMine(id,accounts.requireUser(authentication).getId(),request.reason());
     }
     @GetMapping("/{id}") public MyOrderDetail detail(Authentication authentication, @PathVariable long id) {
         var user = accounts.requireUser(authentication);

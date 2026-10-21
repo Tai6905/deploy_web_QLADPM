@@ -1,4 +1,4 @@
-# Trang thanh toán Mộc Studio
+# Trang thanh toán ShopFlow
 
 Từ giỏ hàng chọn **Tiến hành đặt hàng**, web mở `/checkout`. Khách cần đăng nhập; sau đăng nhập sẽ quay lại đúng trang thanh toán và giữ giỏ hàng.
 

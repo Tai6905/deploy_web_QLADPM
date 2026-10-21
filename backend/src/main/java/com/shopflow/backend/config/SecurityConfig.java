@@ -96,6 +96,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/products/*/content").hasRole("SHOP_OWNER")
                 .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/products/**").hasRole("SHOP_OWNER")
+                .requestMatchers(HttpMethod.POST, "/orders/*/cancel").hasAnyRole("SHOP_OWNER", "SALES_STAFF")
                 .requestMatchers(HttpMethod.POST, "/orders", "/orders/*/payments").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/reference/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/categories/**")

@@ -1,4 +1,4 @@
-# Mộc Studio: sản phẩm, nhập hàng và đánh giá
+# ShopFlow: sản phẩm, nhập hàng và đánh giá
 
 ## Sử dụng
 
@@ -9,7 +9,7 @@
 - **Cửa hàng**: tìm theo tên, SKU, danh mục, hỗ trợ tìm tiếng Việt không dấu; lọc danh mục, giá, số sao và còn hàng; sắp xếp mới nhất, giá tăng/giảm hoặc đánh giá. Bộ lọc chạy tại backend cùng phân trang.
 - **Trang sản phẩm** `/product/:id`: xem bộ ảnh và phóng to, giới thiệu, hướng dẫn, tồn khả dụng, chọn số lượng và thêm vào giỏ chung. Link ảnh hỏng có ảnh thay thế.
 - **Đánh giá**: khách hàng có đơn đã thanh toán và giao thành công mới được đánh giá sản phẩm đã mua. Mỗi tài khoản có một đánh giá cho mỗi sản phẩm và có thể cập nhật. API công khai chỉ hiển thị tên, sao, nội dung, thời gian; không hiển thị email.
-- **Về chúng tôi** `/about` và **Cẩm nang mua sắm** `/guide` có thể mở khi chưa đăng nhập. Thương hiệu hiển thị thống nhất là **Mộc Studio**; các khóa lưu trữ và tên gói kỹ thuật cũ được giữ để không làm mất giỏ hàng.
+- **Về chúng tôi** `/about` và **Cẩm nang mua sắm** `/guide` có thể mở khi chưa đăng nhập. Thương hiệu hiển thị thống nhất là **ShopFlow**; các khóa lưu trữ và tên gói kỹ thuật cũ được giữ để không làm mất giỏ hàng.
 
 ## Database và triển khai
 

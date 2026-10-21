@@ -17,6 +17,7 @@ export type CheckoutVoucher = { code: string; title: string; minimum: number; ty
 export type CheckoutRequest = { shippingAddress: ShippingAddress; contactEmail?: string; paymentMethod: PaymentMethod; items: { productId: number; quantity: number }[]; voucherCode?: string | null; checkoutKey: string; saveAddress: boolean; addressId?: number | null; makeDefault: boolean; expectedTotal: number };
 export type PageQuery = {
   specifications?: Record<string, string>;
+  status?: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED" | "CANCELLED";
   page: number;
   size: number;
   query?: string;
@@ -124,6 +125,7 @@ export type CategoryInput = {
   description?: string | null;
 };
 export type OrderSummary = {
+  cancellation?: CancellationInfo | null;
   paymentMethod?: PaymentMethod;
   id: number;
   orderRef: string;
@@ -131,8 +133,8 @@ export type OrderSummary = {
   product: string;
   quantity: number;
   totalAmount: number;
-  status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED";
-  paymentStatus: "UNPAID" | "PENDING" | "SUCCESS" | "FAILED" | "EXPIRED";
+  status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED" | "CANCELLED";
+  paymentStatus: "UNPAID" | "PENDING" | "SUCCESS" | "FAILED" | "EXPIRED" | "CANCELLED" | "REFUNDED";
   deliveryStatus: "NONE" | "PREPARING" | "SHIPPED" | "DELIVERED";
   createdAt: string;
 };
@@ -223,10 +225,11 @@ export type CreateOrderRequest = {
   items: Array<{ productId: number; quantity: number }>;
 };
 export type OrderResponse = {
+  cancellation?: CancellationInfo | null;
   subtotalAmount: number; discountAmount: number; voucherCode: string | null;
   id: number;
   orderRef: string;
-  status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED";
+  status: "PENDING_PAYMENT" | "PAID" | "PAYMENT_FAILED" | "CANCELLED";
   deliveryStatus: string;
   paymentMethod: string;
   totalAmount: number;
@@ -236,6 +239,7 @@ export type OrderResponse = {
   createdAt: string;
 };
 export type PaymentResponse = { id: number; orderId: number; method: string; status: string; amount: number; paidAt: string | null; failedReason: string | null; createdAt: string; orderStatus: string };
+export type CancellationInfo = { reason: string; cancelledAt: string; actorKind: 'CUSTOMER' | 'STAFF'; paymentOutcome: 'NOT_CHARGED' | 'SIMULATED_REFUND'; refundAmount: number };
 
 export const API_ENDPOINTS = {
   session: "/api/auth/session",
@@ -280,6 +284,7 @@ function queryString(query: PageQuery) {
   Object.entries(query.specifications || {}).forEach(([key, value]) => {
     if (value) params.set(key === 'instrumentType' ? key : `spec.${key}`, value);
   });
+  if (query.status) params.set('status', query.status);
   return params.toString();
 }
 
@@ -298,7 +303,10 @@ export interface ShopflowApi {
   changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
   getEmployees(query: Pick<PageQuery, "page" | "size" | "query">): Promise<ApiPage<AccountProfile>>;
   updateEmployee(id: number, input: { displayName: string; phone: string | null; role: "SALES_STAFF" | "WAREHOUSE"; active: boolean }): Promise<AccountProfile>;
-  getMyOrders(query: Pick<PageQuery, "page" | "size" | "query">): Promise<ApiPage<OrderSummary>>;
+  getMyOrders(query: Pick<PageQuery, "page" | "size" | "query" | "status">): Promise<ApiPage<OrderSummary>>;
+  cancelMyOrder(id: number, reason: string): Promise<OrderResponse>;
+  cancelOrder(id: number, reason: string): Promise<OrderResponse>;
+  getOrder(id: number): Promise<OrderResponse>;
   getMyOrder(id: number): Promise<MyOrderDetail>;
   createMyReturn(orderId: number, input: { reason: string; items: Array<{ orderItemId: number; quantity: number }> }): Promise<ApiReturnRequest>;
   getSession(): Promise<SessionResponse>;
@@ -319,7 +327,7 @@ export interface ShopflowApi {
   updateCategory(id: number, input: CategoryInput): Promise<Category>;
   deleteCategory(id: number): Promise<void>;
   getDashboard(range: DashboardSummary["range"]): Promise<DashboardSummary>;
-  getOrders(query: Pick<PageQuery, "page" | "size" | "query">): Promise<ApiPage<OrderSummary>>;
+  getOrders(query: Pick<PageQuery, "page" | "size" | "query" | "status">): Promise<ApiPage<OrderSummary>>;
   createOrder(input: CreateOrderRequest): Promise<OrderResponse>;
   simulatePayment(orderRef: string, result: "SUCCESS" | "FAILED" | "EXPIRED", failureReason?: string): Promise<PaymentResponse>;
   getInventory(): Promise<InventoryItem[]>;
@@ -336,6 +344,9 @@ export interface ShopflowApi {
 }
 
 export const shopflowApi: ShopflowApi = {
+  cancelMyOrder: (id, reason) => apiRequest<OrderResponse>(`/api/account/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  cancelOrder: (id, reason) => apiRequest<OrderResponse>(`/orders/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getOrder: id => apiRequest<OrderResponse>(`/orders/${id}`),
   getAddresses: () => apiRequest<SavedAddress[]>('/api/account/addresses'),
   saveAddress: (id, input) => apiRequest<SavedAddress>(`/api/account/addresses${id == null ? '' : '/' + id}`, { method: id == null ? 'POST' : 'PUT', body: JSON.stringify(input) }),
   deleteAddress: id => apiRequest<void>(`/api/account/addresses/${id}`, { method: 'DELETE' }),

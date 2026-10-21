@@ -11,8 +11,9 @@ import type { Order, Product, ReturnRequest } from "../data";
 export function toOrderView(order: OrderSummary): Order {
   const deliveryStatus = order.deliveryStatus;
   const status: Order["status"] =
-    order.status === "PAYMENT_FAILED"
+    order.status === "CANCELLED"
       ? "Đã hủy"
+      : order.status === 'PAYMENT_FAILED' ? 'Thanh toán lỗi'
       : order.status === "PENDING_PAYMENT" && order.paymentMethod !== 'COD'
         ? "Chờ xác nhận"
         : deliveryStatus === "DELIVERED"
@@ -23,13 +24,14 @@ export function toOrderView(order: OrderSummary): Order {
   return {
     id: `SF-${order.id}`,
     apiId: order.id,
+    apiStatus: order.status,
     orderRef: order.orderRef,
     paymentMethod: order.paymentMethod,
     customer: order.customer,
     date: new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(order.createdAt)),
     total: order.totalAmount,
     status,
-    payment: order.paymentStatus === "SUCCESS" ? "Đã thanh toán" : "Chờ thanh toán",
+    payment: order.paymentStatus === 'REFUNDED' ? 'Hoàn tiền mô phỏng' : order.status === 'CANCELLED' ? 'Đã hủy' : order.paymentStatus === "SUCCESS" ? "Đã thanh toán" : ['FAILED','EXPIRED'].includes(order.paymentStatus) ? 'Thanh toán lỗi' : "Chờ thanh toán",
     product: order.product,
     quantity: order.quantity,
     deliveryStatus,
@@ -84,6 +86,7 @@ export function toDeliveryOrder(delivery: DeliveryOrder): Order {
   return {
     id: `SF-${delivery.orderId}`,
     apiId: delivery.orderId,
+    apiStatus: delivery.orderStatus,
     customer: delivery.receiverName,
     date: new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(delivery.createdAt)),
     total: delivery.totalAmount,

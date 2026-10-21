@@ -4,6 +4,7 @@ import { shopflowApi, roleLabels, type AccountProfile, type ApiPage, type MyOrde
 import { currentUser, dataSource } from "../auth/session";
 import { money } from "../data";
 import PaginationBar from "../components/PaginationBar.vue";
+import { canCancelOrder } from '../orders/cancellations';
 
 const props = defineProps<{ tab: "profile" | "purchases" }>();
 const emit = defineEmits<{ logout: []; "password-changed": [] }>();
@@ -20,7 +21,7 @@ let loadId = 0, detailId = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString("vi-VN") : "—";
 const deliveryLabels: Record<string, string> = { NONE: "Chờ chuẩn bị", PREPARING: "Đang chuẩn bị", SHIPPED: "Đang giao hàng", DELIVERED: "Đã giao hàng" };
-const orderLabels: Record<string, string> = { PENDING_PAYMENT: "Chờ thanh toán", PAID: "Đã thanh toán", PAYMENT_FAILED: "Thanh toán chưa thành công" };
+const orderLabels: Record<string, string> = { PENDING_PAYMENT: "Chờ thanh toán", PAID: "Đã thanh toán", PAYMENT_FAILED: "Thanh toán chưa thành công", CANCELLED: 'Đã hủy' };
 const returnLabels: Record<string, string> = { REQUESTED: "Đang chờ cửa hàng duyệt", APPROVED: "Đã chấp nhận", RESTOCKED: "Đã hoàn hàng vào kho", REJECTED: "Đã từ chối" };
 const steps = ["NONE", "PREPARING", "SHIPPED", "DELIVERED"];
 const deliveryStep = computed(() => steps.indexOf(detail.value?.order.deliveryStatus || "NONE"));
@@ -111,6 +112,7 @@ async function pay() {
     <header class="account-header">
       <RouterLink to="/customer" class="store-brand"><strong>ShopFlow</strong></RouterLink>
       <nav><RouterLink to="/customer">Cửa hàng</RouterLink><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Đơn mua của tôi</RouterLink><button class="button button-outline" @click="emit('logout')">Đăng xuất</button></nav>
+      <RouterLink to="/cancellations?scope=mine" class="text-link">Đơn đã hủy</RouterLink>
     </header>
     <div :key="tab" class="account-content">
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
@@ -149,7 +151,7 @@ async function pay() {
           <label class="form-label">Tìm đơn<input v-model="search" type="search" placeholder="Mã đơn hoặc tên sản phẩm" /></label>
           <p v-if="loading" role="status">Đang tải đơn mua…</p>
           <div class="table-scroll"><table><thead><tr><th>ĐƠN HÀNG</th><th>SẢN PHẨM</th><th>TỔNG TIỀN</th><th>THANH TOÁN</th><th>GIAO HÀNG</th><th></th></tr></thead><tbody>
-            <tr v-for="order in orders?.items || []" :key="order.id"><td><strong>SF-{{ order.id }}</strong><small class="account-subtext">{{ date(order.createdAt) }}</small></td><td>{{ order.product }}<small class="account-subtext">{{ order.quantity }} sản phẩm</small></td><td>{{ money(order.totalAmount) }}</td><td>{{ orderLabels[order.status] }}</td><td>{{ deliveryLabels[order.deliveryStatus] }}</td><td><button class="button button-small button-outline" :disabled="detailLoading" @click="openOrder(order.id)">Chi tiết / Theo dõi</button></td></tr>
+            <tr v-for="order in orders?.items || []" :key="order.id"><td><strong>SF-{{ order.id }}</strong><small class="account-subtext">{{ date(order.createdAt) }}</small></td><td>{{ order.product }}<small class="account-subtext">{{ order.quantity }} sản phẩm</small></td><td>{{ money(order.totalAmount) }}</td><td>{{ orderLabels[order.status] }}</td><td>{{ order.status === 'CANCELLED' ? 'Đã hủy' : deliveryLabels[order.deliveryStatus] }}</td><td><button class="button button-small button-outline" :disabled="detailLoading" @click="openOrder(order.id)">Chi tiết / Theo dõi</button><RouterLink v-if="canCancelOrder(order)" :to="{ path: '/cancellations', query: { scope: 'mine', order: order.id } }" class="button button-small cancellation-link">Hủy đơn</RouterLink></td></tr>
             <tr v-if="!loading && !orders?.items.length"><td colspan="6" class="empty-cell">Chưa có đơn mua phù hợp. Đơn đặt khi đăng nhập sẽ xuất hiện tại đây.</td></tr>
           </tbody></table></div>
           <PaginationBar :page="page" :page-size="size" :total="orders?.totalItems || 0" :total-pages="Math.max(1, orders?.totalPages || 0)" @change-page="page = $event" @change-size="size = $event; page = 1" />
@@ -159,13 +161,15 @@ async function pay() {
           <div class="account-section-heading"><h2>Đơn SF-{{ detail.order.id }}</h2><button class="button button-outline" :disabled="detailLoading" @click="openOrder(detail.order.id)">Cập nhật trạng thái</button></div>
           <p class="muted-cell">Mã tra cứu: {{ detail.order.orderRef }}</p>
           <p>{{ orderLabels[detail.order.status] }} · {{ date(detail.order.createdAt) }}</p>
-          <ol class="delivery-steps"><li v-for="(step, index) in steps" :key="step" :class="{ complete: index <= deliveryStep }">{{ deliveryLabels[step] }}</li></ol>
+          <ol v-if="detail.order.status !== 'CANCELLED'" class="delivery-steps"><li v-for="(step, index) in steps" :key="step" :class="{ complete: index <= deliveryStep }">{{ deliveryLabels[step] }}</li></ol>
+          <div v-if="detail.order.cancellation" class="cancellation-receipt"><strong>Đã hủy lúc {{ date(detail.order.cancellation.cancelledAt) }}</strong><p>Lý do: {{ detail.order.cancellation.reason }}</p><p>{{ detail.order.cancellation.paymentOutcome === 'SIMULATED_REFUND' ? `Hoàn tiền mô phỏng: ${money(detail.order.cancellation.refundAmount)}` : 'Đơn chưa thu tiền.' }}</p><RouterLink :to="{ path: '/cancellations', query: { scope: 'mine', order: detail.order.id } }" class="text-link">Xem lịch sử hủy →</RouterLink></div>
+          <RouterLink v-if="canCancelOrder(detail.order)" :to="{ path: '/cancellations', query: { scope: 'mine', order: detail.order.id } }" class="button cancellation-link">Hủy đơn hàng</RouterLink>
           <div class="account-grid"><div><h3>Thông tin nhận hàng</h3><p>{{ detail.order.shippingAddress.receiverName }} · {{ detail.order.shippingAddress.phone }}</p><p>{{ [detail.order.shippingAddress.addressLine, detail.order.shippingAddress.district, detail.order.shippingAddress.city].filter(Boolean).join(', ') }}</p></div><div><h3>Sản phẩm</h3><p v-for="item in detail.order.items" :key="item.variantId">{{ item.productName }} × {{ item.quantity }} — {{ money(item.lineTotal) }}</p><strong>Tổng thanh toán: {{ money(detail.order.totalAmount) }}</strong></div></div>
           <h3>Lịch sử giao hàng</h3>
           <ul v-if="detail.delivery.history.length" class="tracking-history"><li v-for="(event, index) in detail.delivery.history" :key="index"><strong>{{ deliveryLabels[event.toStatus] }}</strong><span>{{ date(event.changedAt) }}</span></li></ul>
           <p v-else class="muted-cell">Chưa có cập nhật giao hàng.</p>
           <template v-if="detail.returns.length"><h3>Theo dõi đổi trả</h3><ul class="tracking-history"><li v-for="request in detail.returns" :key="request.id"><span><strong>RT-{{ request.id }} · {{ returnLabels[request.status] }}</strong><small class="account-subtext">{{ request.reason }}</small></span><span>{{ date(request.updatedAt) }}</span></li></ul></template>
-          <p v-if="detail.order.paymentMethod === 'COD' && detail.order.status !== 'PAID'" class="form-success">Thanh toán {{ money(detail.order.totalAmount) }} khi nhận hàng.</p>
+          <p v-if="detail.order.paymentMethod === 'COD' && detail.order.status === 'PENDING_PAYMENT'" class="form-success">Thanh toán {{ money(detail.order.totalAmount) }} khi nhận hàng.</p>
           <p v-if="detail.order.discountAmount" class="muted-cell">Tạm tính {{ money(detail.order.subtotalAmount) }} · Ưu đãi {{ detail.order.voucherCode }}: −{{ money(detail.order.discountAmount) }}</p>
           <button v-if="detail.order.status === 'PENDING_PAYMENT' && detail.order.paymentMethod !== 'COD'" class="button button-primary" :disabled="paymentBusy" @click="pay">Thanh toán thử nghiệm</button>
           <form v-if="detail.order.status === 'PAID' && detail.order.deliveryStatus === 'DELIVERED' && detail.returnableItems.some(item => item.returnableQuantity > 0)" class="auth-form return-request-form" @submit.prevent="requestReturn">

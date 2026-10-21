@@ -11,6 +11,7 @@ export type AppPage =
   | "staff"
   | "profile"
   | "purchases"
+  | "cancellations"
   | "checkout"
   | "customer";
 
@@ -26,6 +27,7 @@ const pageRoles: Record<AppPage, UserRole[]> = {
   customer: ["CUSTOMER", "WAREHOUSE", "SHOP_OWNER", "SALES_STAFF"],
   profile: ["CUSTOMER", "WAREHOUSE", "SHOP_OWNER", "SALES_STAFF"],
   purchases: ["CUSTOMER", "WAREHOUSE", "SHOP_OWNER", "SALES_STAFF"],
+  cancellations: ["CUSTOMER", "WAREHOUSE", "SHOP_OWNER", "SALES_STAFF"],
   checkout: ["CUSTOMER", "WAREHOUSE", "SHOP_OWNER", "SALES_STAFF"],
 };
 

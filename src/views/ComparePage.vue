@@ -21,7 +21,7 @@ async function load() {
   try {
     if (dataSource === 'demo') {
       let source: Product[] = seedProducts;
-      try { const saved = JSON.parse(localStorage.getItem('shopflow.products') || 'null'); if (Array.isArray(saved)) source = saved; } catch { /* Use demo products. */ }
+      try { const saved = JSON.parse(localStorage.getItem('moc.music.products.v1') || 'null'); if (Array.isArray(saved)) source = saved; } catch { /* Use demo products. */ }
       products.value = selection.flatMap(item => source.find(p => p.id === item.id) || []);
       failures.value = selection.filter(item => !source.some(p => p.id === item.id)).map(item => ({ ...item, message: 'Sản phẩm không còn trong danh mục.' }));
       return;

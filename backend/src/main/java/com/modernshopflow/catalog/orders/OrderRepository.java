@@ -164,7 +164,11 @@ public class OrderRepository {
     }
 
     public List<OrderSummary> listOrders(int size, int offset, String search, Long customerId) {
-        return jdbc.query(
+        return listOrders(size,offset,search,customerId,null);
+    }
+
+    public List<OrderSummary> listOrders(int size, int offset, String search, Long customerId, String status) {
+        var result=jdbc.query(
                 """
                 SELECT o.id, o.order_ref, o.customer_name, o.total_amount, o.status,
                        o.delivery_status, o.created_at,o.payment_method,
@@ -176,17 +180,19 @@ public class OrderRepository {
                 LEFT JOIN order_items oi ON oi.order_id = o.id
                 """ + SEARCH_FILTER + """
                 AND (CAST(? AS BIGINT) IS NULL OR o.customer_id = ?)
+                AND (CAST(? AS TEXT) IS NULL OR o.status = ?)
                 GROUP BY o.id, pa.status
-                ORDER BY o.created_at DESC, o.id DESC
-                LIMIT ? OFFSET ?
-                """,
+                ORDER BY
+                """ + ("CANCELLED".equals(status) ? "(SELECT oc.cancelled_at FROM order_cancellations oc WHERE oc.order_id=o.id) DESC, o.id DESC" : "o.created_at DESC, o.id DESC") + " LIMIT ? OFFSET ?",
                 (rs, rowNum) -> new OrderSummary(
                         rs.getLong("id"), rs.getObject("order_ref", UUID.class),
                         rs.getString("customer_name"), rs.getString("products"),
                         rs.getInt("item_quantity"), wholeVnd(rs, "total_amount"),
                         rs.getString("status"), rs.getString("payment_status"),
                         rs.getString("delivery_status"), rs.getObject("created_at", OffsetDateTime.class),rs.getString("payment_method")),
-                search, search, search, customerId, customerId, size, offset);
+                search, search, search, customerId, customerId, status, status, size, offset);
+        var info=findCancellations(result.stream().map(OrderSummary::id).toList());
+        return result.stream().map(order -> order.withCancellation(info.get(order.id()))).toList();
     }
 
     public long countOrders(String search) {
@@ -194,8 +200,12 @@ public class OrderRepository {
     }
 
     public long countOrders(String search, Long customerId) {
+        return countOrders(search,customerId,null);
+    }
+
+    public long countOrders(String search, Long customerId, String status) {
         Long count = jdbc.queryForObject("SELECT COUNT(*) FROM orders o " + SEARCH_FILTER
-                + " AND (CAST(? AS BIGINT) IS NULL OR o.customer_id = ?)", Long.class, search, search, search, customerId, customerId);
+                + " AND (CAST(? AS BIGINT) IS NULL OR o.customer_id = ?) AND (CAST(? AS TEXT) IS NULL OR o.status=?)", Long.class, search, search, search, customerId, customerId,status,status);
         return count == null ? 0 : count;
     }
 
@@ -212,7 +222,16 @@ public class OrderRepository {
         return new OrderResponse(
             header.id(), header.orderRef(), header.status(), header.deliveryStatus(), header.paymentMethod(),
             header.totalAmount(), header.customer(), header.shippingAddress(), listOrderLines(header.id()),
-            header.createdAt(), header.subtotalAmount(),header.discountAmount(),header.voucherCode());
+            header.createdAt(), header.subtotalAmount(),header.discountAmount(),header.voucherCode(),findCancellations(List.of(header.id())).get(header.id()));
+    }
+
+    private java.util.Map<Long,OrderDtos.CancellationInfo> findCancellations(List<Long> ids) {
+        var result=new java.util.HashMap<Long,OrderDtos.CancellationInfo>();
+        if(ids.isEmpty()) return result;
+        String placeholders=String.join(",",java.util.Collections.nCopies(ids.size(),"?"));
+        jdbc.query("SELECT order_id,reason,cancelled_at,actor_kind,payment_outcome,refund_amount FROM order_cancellations WHERE order_id IN ("+placeholders+")",
+                (org.springframework.jdbc.core.RowCallbackHandler) row -> result.put(row.getLong("order_id"),new OrderDtos.CancellationInfo(row.getString("reason"),row.getObject("cancelled_at",OffsetDateTime.class),row.getString("actor_kind"),row.getString("payment_outcome"),wholeVnd(row,"refund_amount"))),ids.toArray());
+        return result;
     }
 
         private List<OrderLineResponse> listOrderLines(long orderId) {

@@ -52,5 +52,11 @@ export function useCart(storage?: Storage, key = "shopflow.cart.v1") {
     }
   }
   function clear() { cart.value = {}; snapshots.value = {}; }
-  return { cart, cartItems, cartTotal, add, adjust, refresh, clear };
+  function removeSkus(skus: readonly string[] = []) {
+    const retired = new Set(skus.map(sku => sku.toUpperCase()));
+    for (const product of Object.values(snapshots.value)) {
+      if (retired.has((product.sku || '').toUpperCase())) adjust(product.id, -(cart.value[product.id] || 0));
+    }
+  }
+  return { cart, cartItems, cartTotal, add, adjust, refresh, clear, removeSkus };
 }

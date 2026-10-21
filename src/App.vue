@@ -33,6 +33,7 @@ import {
 } from "lucide-vue-next";
 import {
   money,
+  retiredCatalogSkus,
   seedOrders,
   seedProducts,
   seedReturns,
@@ -71,6 +72,7 @@ import ProductsInventoryPage from "./views/ProductsInventoryPage.vue";
 import ReturnsPage from "./views/ReturnsPage.vue";
 import StaffPage from "./views/StaffPage.vue";
 import AccountPage from "./views/AccountPage.vue";
+import OrderCancellationsPage from './views/OrderCancellationsPage.vue';
 import AnimatedNumber from "./components/AnimatedNumber.vue";
 import ProductPage from "./views/ProductPage.vue";
 import StoreInfoPage from "./views/StoreInfoPage.vue";
@@ -100,6 +102,7 @@ const page = computed(() =>
   route.path === "/forbidden" ||
   route.path === "/profile" ||
   route.path === "/purchases" ||
+  route.path === "/cancellations" ||
   route.path === "/checkout" ||
   route.path === "/compare" ||
   route.path === "/customer"
@@ -150,16 +153,22 @@ const productDetailId = ref<number | null>(null);
 const productDetail = computed(
   () => products.value.find((product) => product.id === productDetailId.value) ?? null,
 );
-const { cart, cartItems, cartTotal, add: addCartItem, adjust: adjustCart, refresh: refreshCart, clear: clearCart } =
-  useCart(localStorage, `shopflow.${dataSource}.cart.v1`);
+const { cart, cartItems, cartTotal, add: addCartItem, adjust: adjustCart, refresh: refreshCart, clear: clearCart, removeSkus: removeCartSkus } =
+  useCart(localStorage, dataSource === "demo" ? "moc.music.demo.cart.v1" : "shopflow.api.cart.v1");
+removeCartSkus(retiredCatalogSkus);
+const checkoutDestination = computed(() =>
+  dataSource === 'api' && !currentUser.value
+    ? { path: '/login', query: { redirect: '/checkout' } }
+    : { path: '/checkout' },
+);
 const products = ref<Product[]>(
-  dataSource === "demo" ? readStore("shopflow.products", seedProducts) : [],
+  dataSource === "demo" ? readStore("moc.music.products.v1", seedProducts) : [],
 );
 const orders = ref<Order[]>(
-  dataSource === "demo" ? readStore("shopflow.orders", seedOrders) : [],
+  dataSource === "demo" ? readStore("moc.music.orders.v1", seedOrders) : [],
 );
 const returns = ref<ReturnRequest[]>(
-  dataSource === "demo" ? readStore("shopflow.returns", seedReturns) : [],
+  dataSource === "demo" ? readStore("moc.music.returns.v1", seedReturns) : [],
 );
 
 function toCatalogProduct(item: ProductListItem): Product {
@@ -183,7 +192,7 @@ function toCatalogProduct(item: ProductListItem): Product {
 const form = reactive({
   name: "",
   sku: "",
-  category: "Đồ dùng",
+  category: "Guitar acoustic",
   categoryId: 0,
   price: 0,
   unitCost: 0,
@@ -215,7 +224,7 @@ watch(
   products,
   (value) => {
     if (dataSource === "demo")
-      localStorage.setItem("shopflow.products", JSON.stringify(value));
+      localStorage.setItem("moc.music.products.v1", JSON.stringify(value));
   },
   { deep: true },
 );
@@ -223,7 +232,7 @@ watch(
   orders,
   (value) => {
     if (dataSource === "demo")
-      localStorage.setItem("shopflow.orders", JSON.stringify(value));
+      localStorage.setItem("moc.music.orders.v1", JSON.stringify(value));
   },
   { deep: true },
 );
@@ -231,7 +240,7 @@ watch(
   returns,
   (value) => {
     if (dataSource === "demo")
-      localStorage.setItem("shopflow.returns", JSON.stringify(value));
+      localStorage.setItem("moc.music.returns.v1", JSON.stringify(value));
   },
   { deep: true },
 );
@@ -245,6 +254,7 @@ const allNavGroups = [
     label: "BÁN HÀNG",
     items: [
       { title: "Đơn hàng", page: "orders", icon: ShoppingBag },
+      { title: "Đơn đã hủy", page: "cancellations", icon: RotateCcw },
       { title: "Sản phẩm", page: "products", icon: Boxes },
       { title: "Giao hàng", page: "delivery", icon: Truck },
       { title: "Đổi trả", page: "returns", icon: RotateCcw },
@@ -512,7 +522,7 @@ watch(
   [page, workspacePage, workspaceSize, workspaceSearch],
   async ([activePage]) => {
     const loadId = ++workspaceLoadId;
-    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "product", "about", "guide", "checkout", "compare"].includes(activePage)) {
+    if (dataSource !== "api" || ["customer", "products", "login", "forbidden", "staff", "profile", "purchases", "cancellations", "product", "about", "guide", "checkout", "compare"].includes(activePage)) {
       apiWorkspaceLoading.value = false;
       return;
     }
@@ -644,12 +654,7 @@ function notify(message: string) {
   }, 2800);
 }
 
-function openModal(kind: Exclude<ModalKind, null> | "checkout", productId?: number) {
-  if(kind === 'checkout') {
-    if(!cartItems.value.length) { notify('Giỏ hàng đang trống.'); return; }
-    void router.push(dataSource === 'api' && !currentUser.value ? { path: '/login', query: { redirect: '/checkout' } } : '/checkout');
-    return;
-  }
+function openModal(kind: Exclude<ModalKind, null>, productId?: number) {
   modalKind.value = kind;
   newProductSpecifications.value = {};
   selectedProductId.value =
@@ -663,7 +668,7 @@ function openModal(kind: Exclude<ModalKind, null> | "checkout", productId?: numb
     unitCost: 0, description: "", usageInstructions: "", imageUrls: "",
     name: "",
     sku: "",
-    category: "Đồ dùng",
+    category: "Guitar acoustic",
     categoryId: apiCategories.value[0]?.id ?? 0,
     price: 0,
     quantity: 1,
@@ -867,8 +872,7 @@ async function submitModal() {
       stock: 0,
       threshold: 8,
       color: "sage",
-      image:
-        "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=120&q=80",
+      image: form.imageUrls.split(/\r?\n/).map(value => value.trim()).find(Boolean) || "",
     });
     closeModal();
     notify("Đã thêm sản phẩm vào danh mục");
@@ -1103,6 +1107,7 @@ async function advanceOrder(order: Order) {
     "Đang giao": "Hoàn tất",
     "Hoàn tất": "Hoàn tất",
     "Đã hủy": "Đã hủy",
+    "Thanh toán lỗi": "Thanh toán lỗi",
   };
   order.status = next[order.status];
   if (order.status === "Hoàn tất") order.payment = "Đã thanh toán";
@@ -1189,7 +1194,7 @@ function exportOrders() {
   link.href = URL.createObjectURL(
     new Blob([csv], { type: "text/csv;charset=utf-8" }),
   );
-  link.download = "moc-studio-don-hang.csv";
+  link.download = "shopflow-don-hang.csv";
   link.click();
   URL.revokeObjectURL(link.href);
   notify("Đã xuất danh sách đơn hàng");
@@ -1217,7 +1222,7 @@ function exportProducts() {
   link.href = URL.createObjectURL(
     new Blob([csv], { type: "text/csv;charset=utf-8" }),
   );
-  link.download = "moc-studio-san-pham.csv";
+  link.download = "shopflow-san-pham.csv";
   link.click();
   URL.revokeObjectURL(link.href);
   notify("Đã xuất danh mục sản phẩm");
@@ -1333,6 +1338,7 @@ function statusClass(status: string) {
 <template>
   <LoginPage v-if="page === 'login'" />
   <ComparePage v-else-if="page === 'compare'" :cart-quantities="cart" @add="addToCart" />
+  <OrderCancellationsPage v-else-if="page === 'cancellations'" />
   <CheckoutPage v-else-if="page === 'checkout'" :cart-items="cartItems" :cart-total="cartTotal" @clear-cart="clearCart" @refresh-products="refreshCart" />
   <ProductPage v-else-if="page === 'product'" :product-id="Number(route.params.id)" :cart-quantity="cart[Number(route.params.id)] || 0" @add="addToCart" />
   <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :section="page" />
@@ -1393,20 +1399,18 @@ function statusClass(status: string) {
         >
         <details v-if="currentUser" class="account-menu">
           <summary>{{ currentUser.displayName }}</summary>
-          <nav><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Lịch sử mua / Theo dõi đơn</RouterLink></nav>
+          <nav><RouterLink to="/profile">Thông tin cá nhân</RouterLink><RouterLink to="/purchases">Lịch sử mua / Theo dõi đơn</RouterLink><RouterLink to="/cancellations?scope=mine">Đơn đã hủy</RouterLink></nav>
         </details>
         <button v-if="currentUser" class="button button-outline" @click="logout"><LogOut :size="15" />Đăng xuất</button>
-        <button
+        <RouterLink
+          v-if="cartItems.length"
+          :to="checkoutDestination"
           class="button button-primary cart-button"
-          @click="
-            cartItems.length
-              ? openModal('checkout')
-              : notify('Giỏ hàng đang trống')
-          "
         >
           <ShoppingCart :size="17" /><span>Giỏ hàng</span
           ><b :key="cartItems.reduce((sum, item) => sum + item.quantity, 0)" class="cart-bump">{{ cartItems.reduce((sum, item) => sum + item.quantity, 0) }}</b>
-        </button>
+        </RouterLink>
+        <button v-else type="button" class="button button-primary cart-button" @click="notify('Giỏ hàng đang trống')"><ShoppingCart :size="17" /><span>Giỏ hàng</span><b>0</b></button>
       </div>
     </header>
     <section class="storefront-hero">
@@ -1418,7 +1422,7 @@ function statusClass(status: string) {
       </div>
       <div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
       <div class="hero-stamp">
-        <span>CURATED<br />FOR EVERYDAY</span><Sparkles :size="25" />
+        <span>PLAY<br />YOUR STORY</span><Sparkles :size="25" />
       </div>
     </section>
     <div class="storefront-content">
@@ -1541,13 +1545,14 @@ function statusClass(status: string) {
         <div class="cart-total">
           <span>Tạm tính</span><strong>{{ money(cartTotal) }}</strong>
         </div>
-        <button
+        <RouterLink
+          v-if="cartItems.length"
+          :to="checkoutDestination"
           class="button button-primary checkout-button"
-          :disabled="!cartItems.length"
-          @click="openModal('checkout')"
         >
           Tiến hành đặt hàng <ArrowRight :size="16" />
-        </button>
+        </RouterLink>
+        <button v-else type="button" class="button button-primary checkout-button" disabled>Tiến hành đặt hàng <ArrowRight :size="16" /></button>
         <p class="store-checkout-note">
           Chọn địa chỉ, voucher và phương thức ở trang thanh toán.
         </p>
@@ -1555,7 +1560,7 @@ function statusClass(status: string) {
     </div>
     <footer class="storefront-footer">
       <span>© 2026 ShopFlow</span
-      ><nav class="store-footer-links"><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang mua sắm</RouterLink></nav><span>Đơn giản hơn, có chủ đích hơn.</span>
+      ><nav class="store-footer-links"><RouterLink to="/about">Về chúng tôi</RouterLink><RouterLink to="/guide">Cẩm nang mua sắm</RouterLink></nav><span>Âm nhạc bắt đầu từ cảm hứng.</span>
     </footer>
     <Transition name="dialog">
     <ProductDetailDialog
@@ -2284,10 +2289,10 @@ function statusClass(status: string) {
                 </option>
               </select>
               <select v-else v-model="form.category">
-                <option>Đồ dùng</option>
-                <option>Phụ kiện</option>
-                <option>Văn phòng phẩm</option>
-                <option>Trang trí</option>
+                <option>Guitar acoustic</option>
+                <option>Guitar điện</option>
+                <option>Đàn piano</option>
+                <option>Trống acoustic</option><option>Đàn violin</option><option>Kèn trumpet</option>
               </select></label
             >
           </div>
