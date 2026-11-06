@@ -67,6 +67,8 @@ import PaginationBar from "./components/PaginationBar.vue";
 import CategoryManager from "./components/CategoryManager.vue";
 import ProductDetailDialog from "./components/ProductDetailDialog.vue";
 import LoginPage from "./views/LoginPage.vue";
+import MusicScene from "./components/MusicScene.vue";
+import MotionControls from "./components/MotionControls.vue";
 import OrdersDeliveryPage from "./views/OrdersDeliveryPage.vue";
 import ProductsInventoryPage from "./views/ProductsInventoryPage.vue";
 import ReturnsPage from "./views/ReturnsPage.vue";
@@ -1333,16 +1335,25 @@ function statusClass(status: string) {
   if (status.includes("hủy") || status.includes("từ chối")) return "danger";
   return "info";
 }
+
+function preparePageTransition() {
+  document.documentElement.dataset.pageTransition = "leaving";
+}
+function finishPageTransition() {
+  delete document.documentElement.dataset.pageTransition;
+  window.dispatchEvent(new Event("shopflow:page-ready"));
+}
 </script>
 
 <template>
+  <Transition name="page-scene" mode="out-in" appear @before-leave="preparePageTransition" @enter="finishPageTransition" @leave-cancelled="finishPageTransition">
   <LoginPage v-if="page === 'login'" />
   <ComparePage v-else-if="page === 'compare'" :cart-quantities="cart" @add="addToCart" />
   <OrderCancellationsPage v-else-if="page === 'cancellations'" />
   <CheckoutPage v-else-if="page === 'checkout'" :cart-items="cartItems" :cart-total="cartTotal" @clear-cart="clearCart" @refresh-products="refreshCart" />
   <ProductPage v-else-if="page === 'product'" :product-id="Number(route.params.id)" :cart-quantity="cart[Number(route.params.id)] || 0" @add="addToCart" />
-  <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :section="page" />
-  <AccountPage v-else-if="page === 'profile' || page === 'purchases'" :tab="page" @logout="logout" @password-changed="passwordChanged" />
+  <StoreInfoPage v-else-if="page === 'about' || page === 'guide'" :key="page" :section="page" />
+  <AccountPage v-else-if="page === 'profile' || page === 'purchases'" :key="page" :tab="page" @logout="logout" @password-changed="passwordChanged" />
   <main v-else-if="page === 'forbidden'" class="auth-page">
     <section class="auth-panel forbidden-panel">
       <span class="auth-kicker">403 · KHÔNG ĐỦ QUYỀN</span>
@@ -1415,16 +1426,15 @@ function statusClass(status: string) {
     </header>
     <section class="storefront-hero">
       <div class="hero-copy">
-        <span class="auth-kicker">SHOPFLOW · NHẠC CỤ & ĐAM MÊ</span>
-        <h1>Chạm từng âm sắc,<br />bắt đầu đam mê.</h1>
-        <p>Khám phá, lọc và so sánh nhạc cụ theo nhu cầu của bạn.</p>
-        <a class="hero-explore" href="#collection">Khám phá bộ sưu tập <ArrowRight :size="17" /></a>
+        <span class="auth-kicker"><span class="live-dot"></span> SHOPFLOW · NHẠC CỤ & ĐAM MÊ</span>
+        <h1>Chạm từng âm sắc,<br /><em>bắt đầu đam mê.</em></h1>
+        <p>Từ nốt nhạc đầu tiên đến sân khấu của riêng bạn. Tìm nhạc cụ đồng hành cùng mọi cảm hứng.</p>
+        <div class="hero-actions"><a class="hero-explore" href="#collection">Khám phá bộ sưu tập <ArrowRight :size="17" /></a><RouterLink to="/guide" class="hero-story-link">Tìm cảm hứng <ArrowUpRight :size="16" /></RouterLink></div>
+        <span class="hero-subnote"><Sparkles :size="13" /> Âm nhạc bắt đầu từ một lựa chọn của bạn.</span>
       </div>
-      <div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
-      <div class="hero-stamp">
-        <span>PLAY<br />YOUR STORY</span><Sparkles :size="25" />
-      </div>
+      <MusicScene />
     </section>
+    <div class="collection-ribbon" aria-label="Thế giới nhạc cụ ShopFlow"><span>GUITAR</span><i aria-hidden="true">✳</i><span>PIANO</span><i aria-hidden="true">✳</i><span>UKULELE</span><i aria-hidden="true">✳</i><span>TRỐNG & PHỤ KIỆN</span></div>
     <div class="storefront-content">
       <section id="collection" class="store-catalog">
         <div v-reveal class="store-section-heading">
@@ -2432,5 +2442,7 @@ function statusClass(status: string) {
     />
     </Transition>
   </div>
+  </Transition>
   <ComparisonTray v-if="['customer', 'product', 'compare'].includes(page)" />
+  <MotionControls />
 </template>

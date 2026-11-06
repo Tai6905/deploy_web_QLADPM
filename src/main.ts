@@ -9,11 +9,26 @@ import "./commerce.css";
 import "./checkout.css";
 import "./instruments.css";
 import "./cancellations.css";
+import "./auth.css";
+import "./experience.css";
 import { installMotion } from "./motion";
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior(to, _from, savedPosition) {
+  async scrollBehavior(to, _from, savedPosition) {
+    // Wait for the incoming page to exist before restoring scroll or finding an anchor.
+    if (document.documentElement.dataset.pageTransition === "leaving") {
+      await new Promise<void>(resolve => {
+        const finish = () => {
+          window.clearTimeout(timeout);
+          window.removeEventListener("shopflow:page-ready", finish);
+          resolve();
+        };
+        const timeout = window.setTimeout(finish, 700);
+        window.addEventListener("shopflow:page-ready", finish, { once: true });
+      });
+    }
+    if (to.fullPath !== router.currentRoute.value.fullPath) return false;
     if (savedPosition) return savedPosition;
     return to.hash ? { el: to.hash, top: 20 } : { left: 0, top: 0 };
   },
